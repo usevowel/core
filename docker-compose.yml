@@ -1,0 +1,25 @@
+services:
+  core:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      SNDBRD_URL: http://sndbrd:8787
+      SNDBRD_API_KEY: ${SNDBRD_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      DB_PATH: /app/data/core.db
+    volumes:
+      - ./data:/app/data
+    # Uncomment to run with sndbrd:
+    # depends_on:
+    #   - sndbrd
+
+  # sndbrd:
+  #   build: ../engines/sndbrd
+  #   ports:
+  #     - "8787:8787"
+  #   environment:
+  #     API_KEY: ${SNDBRD_API_KEY}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #     GROQ_API_KEY: ${GROQ_API_KEY}
