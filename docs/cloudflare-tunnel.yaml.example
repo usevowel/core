@@ -1,0 +1,19 @@
+# Cloudflare Tunnel configuration example for Vowel Core
+#
+# This file documents the tunnel config structure. Do NOT put real credentials here.
+# Copy to cloudflare-tunnel.yaml and add credentials - then add to .gitignore.
+# For token-based tunnels (recommended), use CLOUDFLARE_TUNNEL_TOKEN in .env instead.
+#
+# Config file approach (alternative to token):
+#   cloudflared tunnel run --config cloudflare-tunnel.yaml
+#
+# See docs/CLOUDFLARE_TUNNEL.md for full setup.
+
+# tunnel: <tunnel-id-from-dashboard>
+# credentials-file: /path/to/credentials.json  # From Cloudflare dashboard, keep secret
+
+ingress:
+  - hostname: testing-core.vowel.to
+    service: http://localhost:3000
+  # Catch-all must be last
+  - service: http_status:404

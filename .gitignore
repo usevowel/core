@@ -4,6 +4,15 @@ ui/dist
 *.tsbuildinfo
 .env
 .env.local
+.env.*.local
 *.db
 data/
 .DS_Store
+
+# Cloudflare (secrets - do not commit for open source)
+.cloudflared/
+*credentials*.json
+cloudflare-tunnel.yaml
+
+# Logs
+.logs/

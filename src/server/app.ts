@@ -1,6 +1,6 @@
 /**
- * Vowel Core - Elysia server
- * Token API, apps, API keys, provider keys, static UI
+ * Vowel Core - Elysia app (exported for testing).
+ * Token API, apps, API keys, provider keys, static UI.
  */
 
 import { Elysia } from "elysia";
@@ -8,14 +8,16 @@ import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
 import { existsSync } from "fs";
 import { join } from "path";
-import { initDb } from "../db/init";
 import { listProviderKeys } from "../db/provider-keys";
 import { providerKeysRoutes } from "./routes/provider-keys";
 import { handleGenerateToken } from "./token";
 
-initDb();
+/** API port when running alongside vinext (Docker). */
+const API_PORT = parseInt(process.env.API_PORT ?? "3001", 10);
+const PORT = parseInt(process.env.PORT ?? "3000", 10);
+const isApiOnly = process.env.API_ONLY === "1";
 
-// Docker: dist at /app/dist. Local: ui/dist
+// Docker: dist at /app/dist. Local: ui/dist (vinext build output)
 const distPath = existsSync(join(import.meta.dir, "../../dist"))
   ? join(import.meta.dir, "../../dist")
   : join(import.meta.dir, "../../ui/dist");
@@ -45,45 +47,14 @@ function getVowelPrimeStatus() {
           .replace(/^http:/, "ws:")
           .replace(/\/?$/, "") + "/v1/realtime"
       : undefined);
-
-  const environments = [
-    {
-      value: "testing",
-      label: "testing (testing-prime.vowel.to)",
-      wsUrl: "wss://testing-prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "dev",
-      label: "dev (dev-prime.vowel.to)",
-      wsUrl: "wss://dev-prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "staging",
-      label: "staging (staging.prime.vowel.to)",
-      wsUrl: "wss://staging.prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "production",
-      label: "production (prime.vowel.to)",
-      wsUrl: "wss://prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "billing-test",
-      label: "billing-test (billing-test.vowel.to)",
-      wsUrl: "wss://billing-test.vowel.to/v1/realtime",
-    },
-  ];
-
-  if (selfHostedWs) {
-    environments.unshift({
-      value: "self-hosted",
-      label: "self-hosted (docker-compose)",
-      wsUrl: selfHostedWs,
-    });
-  }
-
   return {
-    environments,
+    environments: [
+      { value: "testing", label: "testing (testing-prime.vowel.to)", wsUrl: "wss://testing-prime.vowel.to/v1/realtime" },
+      { value: "dev", label: "dev (dev-prime.vowel.to)", wsUrl: "wss://dev-prime.vowel.to/v1/realtime" },
+      { value: "staging", label: "staging (staging.prime.vowel.to)", wsUrl: "wss://staging.prime.vowel.to/v1/realtime" },
+      { value: "production", label: "production (prime.vowel.to)", wsUrl: "wss://prime.vowel.to/v1/realtime" },
+      { value: "billing-test", label: "billing-test (billing-test.vowel.to)", wsUrl: "wss://billing-test.vowel.to/v1/realtime" },
+    ],
     defaultEnvironment: selfHostedWs ? "self-hosted" : "staging",
     selfHostedWsUrl: selfHostedWs,
   };
@@ -116,14 +87,12 @@ let app = new Elysia()
     }
   });
 
-if (hasDist) {
+if (hasDist && !isApiOnly) {
   app = app.use(
     staticPlugin({ assets: distPath, prefix: "/", indexHTML: true })
   );
 }
 
-app = app.listen(process.env.PORT || 3000);
+const listenPort = isApiOnly ? API_PORT : PORT;
 
-console.log(
-  `Vowel Core running at http://${app.server?.hostname}:${app.server?.port}`
-);
+export { app, listenPort };
