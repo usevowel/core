@@ -1,6 +1,6 @@
 /**
- * Vowel Core - Elysia app (exported for testing).
- * Token API, apps, API keys, provider keys, static UI.
+ * Vowel Core - Elysia + tRPC app
+ * Hybrid: REST for generateToken (SDK compatibility), tRPC for everything else
  */
 
 import { Elysia } from "elysia";
@@ -8,14 +8,105 @@ import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
 import { existsSync } from "fs";
 import { join } from "path";
-import { listProviderKeys } from "../db/provider-keys";
-import { providerKeysRoutes } from "./routes/provider-keys";
-import { handleGenerateToken } from "./token";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { appRouter } from "./trpc/router";
+import { createContext } from "./trpc/context";
+import { handleGenerateToken, type TokenRequestBody } from "./token";
 
 /** API port when running alongside vinext (Docker). */
 const API_PORT = parseInt(process.env.API_PORT ?? "3001", 10);
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
+const TRPC_PATH = "/trpc";
 const isApiOnly = process.env.API_ONLY === "1";
+const REQUEST_ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+type RequestTrace = {
+  id: string;
+  startedAt: number;
+  method: string;
+  path: string;
+};
+
+const requestTraces = new WeakMap<Request, RequestTrace>();
+const requestPath = (request: Request) => {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return request.url;
+  }
+};
+
+const nextRequestId = () => {
+  const randomSuffix = Array.from({ length: 8 })
+    .map(() => REQUEST_ID_CHARS[Math.floor(Math.random() * REQUEST_ID_CHARS.length)])
+    .join("");
+  return `${Date.now()}-${randomSuffix}`;
+};
+
+const logRequestStart = ({
+  request,
+  requestId,
+}: {
+  request: Request;
+  requestId: string;
+}) => {
+  const method = request.method.toUpperCase();
+  const path = requestPath(request);
+  const startedAt = Date.now();
+
+  requestTraces.set(request, {
+    id: requestId,
+    startedAt,
+    method,
+    path,
+  });
+
+  console.log(`[core] [${requestId}] ${method} ${path} -> start`);
+};
+
+const logRequestEnd = ({
+  request,
+  status,
+}: {
+  request: Request;
+  status: number;
+}) => {
+  const trace = requestTraces.get(request);
+  if (!trace) {
+    return;
+  }
+
+  const elapsed = Date.now() - trace.startedAt;
+  console.log(
+    `[core] [${trace.id}] ${trace.method} ${trace.path} -> ${status} (${elapsed}ms)`
+  );
+  requestTraces.delete(request);
+};
+
+const logRequestError = ({
+  request,
+  status,
+  error,
+}: {
+  request: Request;
+  status: number;
+  error: unknown;
+}) => {
+  const trace = requestTraces.get(request);
+  const requestId = trace?.id ?? "unknown";
+  const path = trace?.path ?? requestPath(request);
+  const method = trace?.method ?? request.method.toUpperCase();
+  const elapsed = trace ? Date.now() - trace.startedAt : 0;
+
+  console.error(
+    `[core] [${requestId}] ${method} ${path} -> ${status} (${elapsed}ms)`,
+    error instanceof Error ? error.stack ?? error.message : error
+  );
+
+  if (trace) {
+    requestTraces.delete(request);
+  }
+};
 
 // Docker: dist at /app/dist. Local: ui/dist (vinext build output)
 const distPath = existsSync(join(import.meta.dir, "../../dist"))
@@ -23,76 +114,99 @@ const distPath = existsSync(join(import.meta.dir, "../../dist"))
   : join(import.meta.dir, "../../ui/dist");
 const hasDist = existsSync(distPath);
 
-function getProviderStatus() {
-  const defaultKeys = listProviderKeys("default");
-  const hasKey = (p: string) => defaultKeys.some((k) => k.provider === p);
-  return {
-    "vowel-prime": {
-      configured: !!process.env.SNDBRD_API_KEY || hasKey("vowel-prime"),
-    },
-    openai: {
-      configured: !!process.env.OPENAI_API_KEY || hasKey("openai"),
-    },
-    grok: {
-      configured: !!process.env.XAI_API_KEY || hasKey("grok"),
-    },
-  };
-}
+// tRPC handler wrapper
+const trpcHandler = async (request: Request): Promise<Response> => {
+  return fetchRequestHandler({
+    endpoint: TRPC_PATH,
+    req: request,
+    router: appRouter,
+    createContext: async () => createContext({ req: request }),
+  });
+};
 
-function getVowelPrimeStatus() {
-  const selfHostedWs =
-    process.env.SNDBRD_WS_URL?.trim() ||
-    (process.env.SNDBRD_URL?.trim()
-      ? process.env.SNDBRD_URL.replace(/^https:/, "wss:")
-          .replace(/^http:/, "ws:")
-          .replace(/\/?$/, "") + "/v1/realtime"
-      : undefined);
-  return {
-    environments: [
-      { value: "testing", label: "testing (testing-prime.vowel.to)", wsUrl: "wss://testing-prime.vowel.to/v1/realtime" },
-      { value: "dev", label: "dev (dev-prime.vowel.to)", wsUrl: "wss://dev-prime.vowel.to/v1/realtime" },
-      { value: "staging", label: "staging (staging.prime.vowel.to)", wsUrl: "wss://staging.prime.vowel.to/v1/realtime" },
-      { value: "production", label: "production (prime.vowel.to)", wsUrl: "wss://prime.vowel.to/v1/realtime" },
-      { value: "billing-test", label: "billing-test (billing-test.vowel.to)", wsUrl: "wss://billing-test.vowel.to/v1/realtime" },
-    ],
-    defaultEnvironment: selfHostedWs ? "self-hosted" : "staging",
-    selfHostedWsUrl: selfHostedWs,
-  };
-}
+// Token endpoint handler with Bearer auth
+const tokenHandler = async (request: Request): Promise<Response> => {
+  try {
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ message: "Unauthorized: Bearer token required" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
+    const apiKey = authHeader.slice(7);
+    const body = (await request.json()) as TokenRequestBody;
+    
+    const result = await handleGenerateToken(body, apiKey);
+    
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("[core] Token generation error:", error);
+    return new Response(
+      JSON.stringify({ 
+        message: error instanceof Error ? error.message : "Token generation failed" 
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+};
+
+// Build Elysia app
 let app = new Elysia()
   .use(cors())
-  .get("/health", () => ({ status: "ok" }))
-  .get("/api/status", () => ({
-    providers: getProviderStatus(),
-    vowelPrime: getVowelPrimeStatus(),
-  }))
-  .use(providerKeysRoutes)
-  .group("/api", (app) =>
-    app
-      .get("/apps", () => [])
-      .post("/apps", ({ body }) => ({ id: "placeholder", ...body }))
-  )
-  .post("/vowel/api/generateToken", async ({ body }) => {
-    try {
-      const parsed = typeof body === "string" ? JSON.parse(body) : body;
-      const result = await handleGenerateToken(parsed);
-      return result;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Token generation failed";
-      return new Response(JSON.stringify({ message }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
+  .onRequest(({ request }) => {
+    const requestId = nextRequestId();
+    logRequestStart({ request, requestId });
+  })
+  .onAfterResponse(({ request, set }) => {
+    if (request) {
+      logRequestEnd({
+        request,
+        status: typeof set?.status === "number" ? set.status : 200,
       });
     }
-  });
+  })
+  .onError(({ request, set, error }) => {
+    if (request) {
+      logRequestError({
+        request,
+        status: typeof set?.status === "number" ? set.status : 500,
+        error,
+      });
+    }
+    console.error(
+      `[core] request error context`,
+      request ? `path=${requestPath(request)}` : "path=unknown"
+    );
+  })
+  .get("/health", () => ({ status: "ok" }))
+  // REST token endpoint (SDK compatibility)
+  .post("/vowel/api/generateToken", ({ request }) => tokenHandler(request))
+  .get("/trpc/*", ({ request }) => trpcHandler(request))
+  .post("/trpc/*", ({ request }) => trpcHandler(request))
+  .all("/trpc/*", ({ request }) => trpcHandler(request));
 
+// Add static file serving if UI is built
 if (hasDist && !isApiOnly) {
+  // Serve static assets from ui/dist/assets (Vite outputs JS/CSS there)
+  const assetsPath = join(distPath, "assets");
   app = app.use(
-    staticPlugin({ assets: distPath, prefix: "/", indexHTML: true })
+    staticPlugin({ assets: assetsPath, prefix: "/assets" })
   );
+  
+  // Serve index.html only for root path
+  app = app.get("/", () => {
+    const indexPath = join(distPath, "index.html");
+    return new Response(Bun.file(indexPath));
+  });
 }
+
+
 
 const listenPort = isApiOnly ? API_PORT : PORT;
 
-export { app, listenPort };
+export { app, listenPort, TRPC_PATH };

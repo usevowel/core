@@ -22,9 +22,12 @@
     "tunnel": "bun run scripts/start-tunnel.ts"
   },
   "dependencies": {
-    "elysia": "^1.2.0",
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/static": "^1.2.0",
+    "@trpc/client": "^11.10.0",
+    "@trpc/server": "^11.10.0",
+    "elysia": "^1.2.0",
+    "superjson": "^2.2.6",
     "zod": "^3.24.0"
   },
   "devDependencies": {

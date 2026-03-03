@@ -1,9 +1,11 @@
 /**
  * Token generation handler.
  * Uses stored provider keys (or env fallback) to mint ephemeral tokens.
+ * Now with Bearer auth validation.
  */
 
 import { findProviderKeyForToken } from "../db/provider-keys";
+import { validateApiKey } from "../db/api-keys";
 
 const VOWEL_PRIME_HTTP_URLS: Record<string, string> = {
   testing: "https://testing-prime.vowel.to",
@@ -79,15 +81,34 @@ async function getProviderApiKey(
   );
 }
 
+/**
+ * Handle token generation with Bearer auth
+ * @param body - Token request body
+ * @param apiKey - Bearer token from Authorization header
+ */
 export async function handleGenerateToken(
-  body: TokenRequestBody
+  body: TokenRequestBody,
+  apiKey: string
 ): Promise<TokenResponse> {
-  const appId = body.appId || "default";
+  // Validate the API key
+  const validation = await validateApiKey(apiKey);
+  if (!validation) {
+    throw new Error("Invalid API key");
+  }
+
+  // Check scope
+  if (!validation.scopes.includes("mint_ephemeral")) {
+    throw new Error("API key missing required scope: mint_ephemeral");
+  }
+
+  // Use appId from body or fall back to the app associated with the API key
+  const appId = body.appId || validation.appId;
+  
   const provider = body.config?.provider ?? "vowel-prime";
   const voiceConfig = body.config?.voiceConfig;
   const vowelPrimeConfig = voiceConfig?.vowelPrimeConfig;
 
-  const apiKey = await getProviderApiKey(appId, provider, vowelPrimeConfig);
+  const apiProviderKey = await getProviderApiKey(appId, provider, vowelPrimeConfig);
 
   const model = voiceConfig?.model ?? (provider === "vowel-prime" ? "moonshotai/kimi-k2-instruct-0905" : "gpt-realtime");
   const voice = voiceConfig?.voice ?? (provider === "vowel-prime" ? "Ashley" : "alloy");
@@ -100,7 +121,7 @@ export async function handleGenerateToken(
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiProviderKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -147,7 +168,7 @@ export async function handleGenerateToken(
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiProviderKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ expires_after: { seconds: 300 } }),

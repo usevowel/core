@@ -1,129 +1,16 @@
 /**
- * Vowel Core - Elysia server
- * Token API, apps, API keys, provider keys, static UI
+ * Vowel Core - Elysia + tRPC server entrypoint
  */
 
-import { Elysia } from "elysia";
-import { cors } from "@elysiajs/cors";
-import { staticPlugin } from "@elysiajs/static";
-import { existsSync } from "fs";
-import { join } from "path";
-import { initDb } from "../db/init";
-import { listProviderKeys } from "../db/provider-keys";
-import { providerKeysRoutes } from "./routes/provider-keys";
-import { handleGenerateToken } from "./token";
+import { app, listenPort } from "./app.js";
 
-initDb();
+app.listen(listenPort);
 
-// Docker: dist at /app/dist. Local: ui/dist
-const distPath = existsSync(join(import.meta.dir, "../../dist"))
-  ? join(import.meta.dir, "../../dist")
-  : join(import.meta.dir, "../../ui/dist");
-const hasDist = existsSync(distPath);
+const isApiOnlyMode = process.env.API_ONLY === "1";
 
-function getProviderStatus() {
-  const defaultKeys = listProviderKeys("default");
-  const hasKey = (p: string) => defaultKeys.some((k) => k.provider === p);
-  return {
-    "vowel-prime": {
-      configured: !!process.env.SNDBRD_API_KEY || hasKey("vowel-prime"),
-    },
-    openai: {
-      configured: !!process.env.OPENAI_API_KEY || hasKey("openai"),
-    },
-    grok: {
-      configured: !!process.env.XAI_API_KEY || hasKey("grok"),
-    },
-  };
-}
-
-function getVowelPrimeStatus() {
-  const selfHostedWs =
-    process.env.SNDBRD_WS_URL?.trim() ||
-    (process.env.SNDBRD_URL?.trim()
-      ? process.env.SNDBRD_URL.replace(/^https:/, "wss:")
-          .replace(/^http:/, "ws:")
-          .replace(/\/?$/, "") + "/v1/realtime"
-      : undefined);
-
-  const environments = [
-    {
-      value: "testing",
-      label: "testing (testing-prime.vowel.to)",
-      wsUrl: "wss://testing-prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "dev",
-      label: "dev (dev-prime.vowel.to)",
-      wsUrl: "wss://dev-prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "staging",
-      label: "staging (staging.prime.vowel.to)",
-      wsUrl: "wss://staging.prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "production",
-      label: "production (prime.vowel.to)",
-      wsUrl: "wss://prime.vowel.to/v1/realtime",
-    },
-    {
-      value: "billing-test",
-      label: "billing-test (billing-test.vowel.to)",
-      wsUrl: "wss://billing-test.vowel.to/v1/realtime",
-    },
-  ];
-
-  if (selfHostedWs) {
-    environments.unshift({
-      value: "self-hosted",
-      label: "self-hosted (docker-compose)",
-      wsUrl: selfHostedWs,
-    });
-  }
-
-  return {
-    environments,
-    defaultEnvironment: selfHostedWs ? "self-hosted" : "staging",
-    selfHostedWsUrl: selfHostedWs,
-  };
-}
-
-let app = new Elysia()
-  .use(cors())
-  .get("/health", () => ({ status: "ok" }))
-  .get("/api/status", () => ({
-    providers: getProviderStatus(),
-    vowelPrime: getVowelPrimeStatus(),
-  }))
-  .use(providerKeysRoutes)
-  .group("/api", (app) =>
-    app
-      .get("/apps", () => [])
-      .post("/apps", ({ body }) => ({ id: "placeholder", ...body }))
-  )
-  .post("/vowel/api/generateToken", async ({ body }) => {
-    try {
-      const parsed = typeof body === "string" ? JSON.parse(body) : body;
-      const result = await handleGenerateToken(parsed);
-      return result;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Token generation failed";
-      return new Response(JSON.stringify({ message }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-  });
-
-if (hasDist) {
-  app = app.use(
-    staticPlugin({ assets: distPath, prefix: "/", indexHTML: true })
-  );
-}
-
-app = app.listen(process.env.PORT || 3000);
-
+console.log(`[core] Server running on http://localhost:${listenPort}`);
 console.log(
-  `Vowel Core running at http://${app.server?.hostname}:${app.server?.port}`
+  `[core] Backend config: MODE=${isApiOnlyMode ? "api-only" : "api+ui"}, apiUrl=http://localhost:${listenPort}`
 );
+console.log(`[core] tRPC endpoint: http://localhost:${listenPort}/trpc`);
+console.log(`[core] REST token endpoint: http://localhost:${listenPort}/vowel/api/generateToken`);

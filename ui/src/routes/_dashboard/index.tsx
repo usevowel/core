@@ -54,7 +54,7 @@ function DashboardPage() {
   };
 
   const providerLabels: Record<string, string> = {
-    "vowel-prime": "vowel-prime (sndbrd)",
+    "vowel-prime": "Vowel Engine",
     openai: "OpenAI Realtime",
     grok: "Grok Realtime",
   };

@@ -1,39 +1,74 @@
-# Stage 1: Build vinext UI
-FROM oven/bun:1-alpine AS ui-builder
+# Vowel Core - Production Dockerfile
+# Multi-stage build with UI compilation
+
+# =============================================================================
+# Stage 1: Build UI
+# =============================================================================
+FROM oven/bun:1.2-alpine AS ui-builder
+
 WORKDIR /app/ui
-COPY ui/package.json ui/bun.lock* ./
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+
+# Copy UI dependencies
+COPY ui/package.json ui/bun.lockb ./
+RUN bun install --frozen-lockfile
+
+# Copy UI source and build
 COPY ui/ ./
 RUN bun run build
 
-# Stage 2: Runtime
-FROM oven/bun:1-alpine
+# =============================================================================
+# Stage 2: Build Server
+# =============================================================================
+FROM oven/bun:1.2-alpine AS server-builder
+
 WORKDIR /app
 
-# Node for vinext start (vinext prod server uses node:http)
-RUN apk add --no-cache nodejs
+# Copy server dependencies
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
 
-COPY package.json bun.lock* ./
+# Copy server source
 COPY src/ ./src/
+
+# Build server (optional, for type checking)
+# RUN bun run build:server
+
+# =============================================================================
+# Stage 3: Production Runtime
+# =============================================================================
+FROM oven/bun:1.2-alpine
+
+# Install curl for healthchecks
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json bun.lockb ./
+
+# Install production dependencies only
+RUN bun install --frozen-lockfile --production
+
+# Copy server source
+COPY src/ ./src/
+
+# Copy built UI from stage 1
 COPY --from=ui-builder /app/ui/dist ./ui/dist
 
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+# Create data directory
+RUN mkdir -p /app/data
 
-# UI deps for vinext start
-WORKDIR /app/ui
-COPY ui/package.json ui/bun.lock* ./
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DB_PATH=/app/data/core.db
 
-WORKDIR /app
-
+# Expose port
 EXPOSE 3000
 
-ENV API_ONLY=1
-ENV API_PORT=3001
-ENV PORT=3000
-ENV API_BASE_URL=http://127.0.0.1:3001
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 
-COPY scripts/docker-start.sh /app/scripts/docker-start.sh
-RUN chmod +x /app/scripts/docker-start.sh
-
-CMD ["/app/scripts/docker-start.sh"]
+# Start server
+CMD ["bun", "run", "src/server/index.ts"]

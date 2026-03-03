@@ -1,19 +1,13 @@
 import Link from "next/link";
 
-/** API base URL for server-side fetches (Elysia backend). */
-const API_BASE = process.env.API_BASE_URL ?? "http://127.0.0.1:3001";
-
 /**
  * Dashboard page — provider status, quick links.
  */
 export default async function HomePage() {
-  let status: { providers?: Record<string, { configured?: boolean }> } = {};
-  try {
-    const res = await fetch(`${API_BASE}/api/status`, { cache: "no-store" });
-    status = await res.json().catch(() => ({}));
-  } catch {
-    // API not reachable (e.g. Elysia not running)
-  }
+  const status = await fetch(
+    `${process.env.API_BASE_URL ?? "http://127.0.0.1:3001"}/api/status`,
+    { cache: "no-store" }
+  ).then((r) => r.json().catch(() => ({})));
 
   const providers = status?.providers ?? {
     "vowel-prime": { configured: false },
@@ -52,7 +46,7 @@ export default async function HomePage() {
           </p>
           <div className="stats" style={{ marginTop: 24 }}>
             <div className="card" style={{ padding: 20 }}>
-              <div className="stat-label">vowel-prime (sndbrd)</div>
+              <div className="stat-label">Vowel Engine</div>
               <div
                 className="stat-value"
                 style={{
