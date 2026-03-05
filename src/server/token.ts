@@ -10,14 +10,64 @@ import {
 } from "../db/endpoint-presets";
 
 export interface TokenRequestBody {
-  appId: string;
+  appId?: string;
   origin: string;
   config?: {
     provider?: "vowel-prime" | "openai" | "grok";
+    routes?: Array<{
+      path: string;
+      description: string;
+      queryParams?: string[];
+    }>;
+    actions?: Record<
+      string,
+      {
+        description: string;
+        parameters?: Record<
+          string,
+          {
+            type: string;
+            description: string;
+            optional?: boolean;
+            enum?: string[];
+            items?: unknown;
+          }
+        >;
+      }
+    >;
+    systemInstructionOverride?: string;
+    initialGreetingPrompt?: string;
     voiceConfig?: {
       model?: string;
       voice?: string;
-      vowelPrimeConfig?: { endpointPreset?: string; environment?: string; workerUrl?: string };
+      language?: string;
+      speakingRate?: number;
+      llmProvider?: "groq" | "openrouter";
+      openrouterOptions?: {
+        provider?: string;
+        siteUrl?: string;
+        appName?: string;
+      };
+      initialGreetingPrompt?: string;
+      turnDetectionPreset?: "aggressive" | "balanced" | "conservative";
+      turnDetection?: {
+        mode: "server_vad" | "client_vad" | "disabled";
+        clientVAD?: {
+          adapter?: string;
+          config?: Record<string, unknown>;
+          autoCommit?: boolean;
+        };
+        serverVAD?: {
+          threshold?: number;
+          prefixPaddingMs?: number;
+          silenceDurationMs?: number;
+        };
+      };
+      vowelPrimeConfig?: {
+        endpointPreset?: string;
+        environment?: string;
+        workerUrl?: string;
+      };
     };
   };
 }
@@ -29,6 +79,7 @@ export interface TokenResponse {
   provider: "vowel-prime" | "openai" | "grok";
   expiresAt: string;
   metadata?: Record<string, unknown>;
+  systemInstructions?: string;
 }
 
 export class TokenRequestError extends Error {
@@ -115,6 +166,90 @@ function ensureAllowedPreset(presetName: string, allowedPresetNames: string[]): 
   }
 }
 
+function buildSystemInstructions(config: TokenRequestBody["config"], appId: string): string {
+  if (config?.systemInstructionOverride?.trim()) {
+    return config.systemInstructionOverride.trim();
+  }
+
+  const routes = config?.routes ?? [];
+  const actions = config?.actions ?? {};
+
+  const routesSection =
+    routes.length > 0
+      ? `\n\nAVAILABLE ROUTES:\n${routes
+          .map((route) => {
+            const params =
+              route.queryParams && route.queryParams.length > 0
+                ? ` (query params: ${route.queryParams.join(", ")})`
+                : "";
+            return `- ${route.path}${params}: ${route.description}`;
+          })
+          .join("\n")}`
+      : "";
+
+  const actionsSection =
+    Object.keys(actions).length > 0
+      ? `\n\nAVAILABLE ACTIONS:\n${Object.entries(actions)
+          .map(([name, action]) => `- ${name}: ${action.description}`)
+          .join("\n")}`
+      : "";
+
+  return `You are a specialized voice assistant for app ${appId}.${routesSection}${actionsSection}
+
+RULES:
+1. Use only the provided routes and tools
+2. Keep responses concise and natural
+3. Confirm what you are doing when taking an action`;
+}
+
+function convertActionsToTools(
+  actions: NonNullable<NonNullable<TokenRequestBody["config"]>["actions"]>
+): Array<{
+  type: "function";
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, Record<string, unknown>>;
+    required: string[];
+  };
+}> {
+  return Object.entries(actions).map(([name, action]) => {
+    const properties: Record<string, Record<string, unknown>> = {};
+    const required: string[] = [];
+
+    for (const [paramName, paramDef] of Object.entries(action.parameters ?? {})) {
+      properties[paramName] = {
+        type: paramDef.type,
+        description: paramDef.description,
+      };
+
+      if (paramDef.enum) {
+        properties[paramName].enum = paramDef.enum;
+      }
+
+      if (paramDef.items) {
+        properties[paramName].items = paramDef.items;
+      }
+
+      if (!paramDef.optional) {
+        required.push(paramName);
+      }
+    }
+
+    return {
+      type: "function" as const,
+      name,
+      description: action.description,
+      parameters: {
+        type: "object" as const,
+        properties,
+        required,
+      },
+    };
+  });
+}
+
 /**
  * Handle token generation with Bearer auth
  * @param body - Token request body
@@ -133,7 +268,9 @@ export async function handleGenerateToken(
     throw new TokenRequestError(403, "API key missing required scope: mint_ephemeral");
   }
 
-  if (body.appId && body.appId !== validation.appId) {
+  const appId = body.appId ?? validation.appId;
+
+  if (appId !== validation.appId) {
     throw new TokenRequestError(
       403,
       "Publishable key is not authorized for the requested appId"
@@ -144,10 +281,11 @@ export async function handleGenerateToken(
   ensureAllowedProvider(provider, validation.allowedProviders);
 
   const voiceConfig = body.config?.voiceConfig;
+  const systemInstructions = buildSystemInstructions(body.config, appId);
   const model =
     voiceConfig?.model ??
     (provider === "vowel-prime"
-      ? "moonshotai/kimi-k2-instruct-0905"
+      ? "openai/gpt-oss-120b"
       : "gpt-realtime");
   const voice = voiceConfig?.voice ?? (provider === "vowel-prime" ? "Ashley" : "alloy");
 
@@ -178,6 +316,40 @@ export async function handleGenerateToken(
 
     const endpoint = `${preset.httpUrl}/v1/realtime/sessions`;
     const providerApiKey = requireProviderSecret("vowel-prime");
+    const tools = convertActionsToTools(body.config?.actions ?? {});
+    const {
+      model: _model,
+      voice: _voice,
+      language: _language,
+      vowelPrimeConfig: _vowelPrimeConfig,
+      openrouterOptions,
+      initialGreetingPrompt: voiceConfigGreeting,
+      ...otherVoiceConfig
+    } = voiceConfig ?? {};
+
+    const requestBody: Record<string, unknown> = {
+      model,
+      voice,
+      tools,
+      ...otherVoiceConfig,
+    };
+
+    const initialGreetingPrompt =
+      body.config?.initialGreetingPrompt ?? voiceConfigGreeting;
+    if (initialGreetingPrompt) {
+      requestBody.initialGreetingPrompt = initialGreetingPrompt;
+    }
+    if (systemInstructions) {
+      requestBody.instructions = systemInstructions;
+    }
+    if (voiceConfig?.llmProvider) {
+      requestBody.llmProvider = voiceConfig.llmProvider;
+      if (voiceConfig.llmProvider === "openrouter" && openrouterOptions) {
+        requestBody.openrouterProvider = openrouterOptions.provider;
+        requestBody.openrouterSiteUrl = openrouterOptions.siteUrl;
+        requestBody.openrouterAppName = openrouterOptions.appName;
+      }
+    }
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -185,12 +357,7 @@ export async function handleGenerateToken(
         Authorization: `Bearer ${providerApiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        voice,
-        tools: [],
-        instructions: "",
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) {
@@ -225,6 +392,7 @@ export async function handleGenerateToken(
         audioFormat: "pcm16",
         sampleRate: 24000,
       },
+      systemInstructions,
     };
   }
 
@@ -275,5 +443,6 @@ export async function handleGenerateToken(
       audioFormat: "pcm16",
       sampleRate: 24000,
     },
+    systemInstructions,
   };
 }

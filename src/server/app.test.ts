@@ -76,7 +76,6 @@ describe("Vowel Core API", () => {
     const baseTokenRequest = (overrides: Record<string, unknown> = {}) => {
       return JSON.stringify(
         {
-          appId: "core-test-app",
           origin: "https://local.test",
           ...overrides,
         },
@@ -279,6 +278,141 @@ describe("Vowel Core API", () => {
       }
     });
 
+    test("preserves tools and instructions when minting a vowel-prime token", async () => {
+      const restoreEnv = setEnv({
+        SNDBRD_API_KEY: "dev-test-sndbrd-key",
+        OPENAI_API_KEY: undefined,
+        XAI_API_KEY: undefined,
+      });
+
+      const bearer = await createBearerApiKey();
+      const originalFetch = globalThis.fetch;
+      let capturedRequestBody: Record<string, unknown> | undefined;
+
+      globalThis.fetch = (async (_input, init) => {
+        capturedRequestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            client_secret: {
+              value: "test-vowel-prime-secret",
+              expires_at: Math.floor(Date.now() / 1000) + 300,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }) as typeof fetch;
+
+      try {
+        const res = await postGenerateToken(
+          baseTokenRequest({
+            config: {
+              provider: "vowel-prime",
+              routes: [
+                { path: "/products", description: "Browse products" },
+              ],
+              actions: {
+                navigate: {
+                  description: "Navigate to a route",
+                  parameters: {
+                    path: {
+                      type: "string",
+                      description: "The path to navigate to",
+                    },
+                  },
+                },
+                addToCart: {
+                  description: "Add a product to cart",
+                  parameters: {
+                    productId: {
+                      type: "string",
+                      description: "The product identifier",
+                    },
+                  },
+                },
+              },
+              systemInstructionOverride: "Custom instructions from client",
+              voiceConfig: {
+                provider: "vowel-prime",
+                model: "openai/gpt-oss-120b",
+                voice: "Timothy",
+                llmProvider: "groq",
+                turnDetection: {
+                  mode: "server_vad",
+                  serverVAD: {
+                    threshold: 0.5,
+                    silenceDurationMs: 550,
+                  },
+                },
+              },
+            },
+          }),
+          bearer.plaintext
+        );
+
+        expect(res.status).toBe(200);
+        expect(capturedRequestBody).toBeDefined();
+        expect(capturedRequestBody).toMatchObject({
+          model: "openai/gpt-oss-120b",
+          voice: "Timothy",
+          instructions: "Custom instructions from client",
+          llmProvider: "groq",
+          turnDetection: {
+            mode: "server_vad",
+            serverVAD: {
+              threshold: 0.5,
+              silenceDurationMs: 550,
+            },
+          },
+        });
+        expect(capturedRequestBody?.tools).toEqual([
+          {
+            type: "function",
+            name: "navigate",
+            description: "Navigate to a route",
+            parameters: {
+              type: "object",
+              properties: {
+                path: {
+                  type: "string",
+                  description: "The path to navigate to",
+                },
+              },
+              required: ["path"],
+            },
+          },
+          {
+            type: "function",
+            name: "addToCart",
+            description: "Add a product to cart",
+            parameters: {
+              type: "object",
+              properties: {
+                productId: {
+                  type: "string",
+                  description: "The product identifier",
+                },
+              },
+              required: ["productId"],
+            },
+          },
+        ]);
+
+        const json = await res.json();
+        expect(json).toMatchObject({
+          tokenName: "test-vowel-prime-secret",
+          model: "openai/gpt-oss-120b",
+          provider: "vowel-prime",
+          systemInstructions: "Custom instructions from client",
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        restoreEnv();
+      }
+    });
+
     test("returns a CORS-friendly preflight response", async () => {
       const res = await app.fetch(
         new Request("http://localhost/vowel/api/generateToken", {
@@ -451,6 +585,65 @@ describe("Vowel Core API", () => {
       expect(res.status).toBe(403);
       const json = await res.json();
       expect(json.message).toContain("not allowed");
+    });
+
+    test("uses the API key app when appId is omitted", async () => {
+      const appRecord = createApp({
+        name: "Implicit app policy app",
+      });
+      const key = await createApiKey({
+        appId: appRecord.id,
+        scopes: ["mint_ephemeral"],
+        allowedProviders: ["openai"],
+      });
+
+      const previousOpenAiKey = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = "dev-test-openai-key";
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            value: "test-client-secret",
+            expires_at: Math.floor(Date.now() / 1000) + 300,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )) as typeof fetch;
+
+      try {
+        const res = await app.fetch(
+          new Request("http://localhost/vowel/api/generateToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${key.plaintext}`,
+            },
+            body: JSON.stringify({
+              origin: "http://localhost",
+              config: {
+                provider: "openai",
+              },
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json).toMatchObject({
+          provider: "openai",
+          tokenName: "test-client-secret",
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        if (previousOpenAiKey === undefined) {
+          delete process.env.OPENAI_API_KEY;
+        } else {
+          process.env.OPENAI_API_KEY = previousOpenAiKey;
+        }
+      }
     });
 
     test("returns 403 when endpoint preset is not allowed by publishable key policy", async () => {
