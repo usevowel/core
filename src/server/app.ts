@@ -11,7 +11,17 @@ import { join } from "path";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./trpc/router";
 import { createContext } from "./trpc/context";
-import { handleGenerateToken, type TokenRequestBody } from "./token";
+import {
+  handleGenerateToken,
+  TokenRequestError,
+  type TokenRequestBody,
+} from "./token";
+import { initDb } from "../db/init";
+import { bootstrapCoreDataFromEnv } from "../db/bootstrap";
+import { statusRoutes } from "./routes/status";
+import { appsRoutes } from "./routes/apps";
+import { apiKeysRoutes } from "./routes/api-keys";
+import { endpointPresetRoutes } from "./routes/endpoint-presets";
 
 /** API port when running alongside vinext (Docker). */
 const API_PORT = parseInt(process.env.API_PORT ?? "3001", 10);
@@ -108,11 +118,23 @@ const logRequestError = ({
   }
 };
 
-// Docker: dist at /app/dist. Local: ui/dist (vinext build output)
-const distPath = existsSync(join(import.meta.dir, "../../dist"))
-  ? join(import.meta.dir, "../../dist")
-  : join(import.meta.dir, "../../ui/dist");
-const hasDist = existsSync(distPath);
+// Prefer an actual UI build (index.html + assets) when serving static files.
+const uiDistCandidates = [
+  join(import.meta.dir, "../../dist"),
+  join(import.meta.dir, "../../ui/dist"),
+];
+
+const distPath =
+  uiDistCandidates.find((candidate) => {
+    return (
+      existsSync(join(candidate, "index.html")) &&
+      existsSync(join(candidate, "assets"))
+    );
+  }) ?? null;
+const hasDist = distPath !== null;
+
+initDb();
+await bootstrapCoreDataFromEnv();
 
 // tRPC handler wrapper
 const trpcHandler = async (request: Request): Promise<Response> => {
@@ -146,11 +168,12 @@ const tokenHandler = async (request: Request): Promise<Response> => {
     });
   } catch (error) {
     console.error("[core] Token generation error:", error);
+    const status = error instanceof TokenRequestError ? error.status : 500;
     return new Response(
       JSON.stringify({ 
         message: error instanceof Error ? error.message : "Token generation failed" 
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status, headers: { "Content-Type": "application/json" } }
     );
   }
 };
@@ -186,12 +209,16 @@ let app = new Elysia()
   .get("/health", () => ({ status: "ok" }))
   // REST token endpoint (SDK compatibility)
   .post("/vowel/api/generateToken", ({ request }) => tokenHandler(request))
+  .use(statusRoutes)
+  .use(appsRoutes)
+  .use(apiKeysRoutes)
+  .use(endpointPresetRoutes)
   .get("/trpc/*", ({ request }) => trpcHandler(request))
   .post("/trpc/*", ({ request }) => trpcHandler(request))
   .all("/trpc/*", ({ request }) => trpcHandler(request));
 
 // Add static file serving if UI is built
-if (hasDist && !isApiOnly) {
+if (hasDist && !isApiOnly && distPath) {
   // Serve static assets from ui/dist/assets (Vite outputs JS/CSS there)
   const assetsPath = join(distPath, "assets");
   app = app.use(
@@ -200,6 +227,22 @@ if (hasDist && !isApiOnly) {
   
   // Serve index.html only for root path
   app = app.get("/", () => {
+    const indexPath = join(distPath, "index.html");
+    return new Response(Bun.file(indexPath));
+  });
+
+  app = app.get("/*", ({ request }) => {
+    const pathname = new URL(request.url).pathname;
+    if (
+      pathname.startsWith("/api") ||
+      pathname.startsWith("/trpc") ||
+      pathname.startsWith("/vowel") ||
+      pathname.startsWith("/health") ||
+      pathname.startsWith("/assets")
+    ) {
+      return new Response("NOT_FOUND", { status: 404 });
+    }
+
     const indexPath = join(distPath, "index.html");
     return new Response(Bun.file(indexPath));
   });

@@ -9,16 +9,21 @@ import {
   createApiKey,
   listApiKeys,
   deleteApiKey,
+  revealApiKeyPlaintext,
+  updateApiKey,
+  revokeApiKey,
   type ApiKeyScope,
 } from "../../../db/api-keys";
+import type { EndpointProvider } from "../../../db/endpoint-presets";
 
 const scopeSchema = z.enum(["mint_ephemeral", "direct_ws"]);
+const providerSchema = z.enum(["vowel-prime", "openai", "grok"]);
 
 export const apiKeysRouter = router({
   list: publicProcedure
     .input(z.object({ appId: z.string() }))
-    .query(({ input }) => {
-      return listApiKeys(input.appId);
+    .query(async ({ input }) => {
+      return await listApiKeys(input.appId);
     }),
 
   create: publicProcedure
@@ -27,6 +32,9 @@ export const apiKeysRouter = router({
         appId: z.string(),
         scopes: z.array(scopeSchema),
         label: z.string().optional(),
+        allowedProviders: z.array(providerSchema).optional(),
+        allowedEndpointPresets: z.array(z.string()).optional(),
+        defaultEndpointPreset: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -34,7 +42,56 @@ export const apiKeysRouter = router({
         appId: input.appId,
         scopes: input.scopes as ApiKeyScope[],
         label: input.label,
+        allowedProviders: input.allowedProviders as EndpointProvider[] | undefined,
+        allowedEndpointPresets: input.allowedEndpointPresets,
+        defaultEndpointPreset: input.defaultEndpointPreset,
       });
+    }),
+
+  reveal: publicProcedure
+    .input(z.object({ id: z.string(), appId: z.string() }))
+    .query(async ({ input }) => {
+      const plaintext = await revealApiKeyPlaintext(input.id, input.appId);
+      if (!plaintext) {
+        throw new Error("API key not found");
+      }
+      return { plaintext };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        appId: z.string(),
+        scopes: z.array(scopeSchema).optional(),
+        label: z.string().optional(),
+        allowedProviders: z.array(providerSchema).optional(),
+        allowedEndpointPresets: z.array(z.string()).optional(),
+        defaultEndpointPreset: z.string().nullable().optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const updated = updateApiKey(input.id, input.appId, {
+        scopes: input.scopes as ApiKeyScope[] | undefined,
+        label: input.label,
+        allowedProviders: input.allowedProviders as EndpointProvider[] | undefined,
+        allowedEndpointPresets: input.allowedEndpointPresets,
+        defaultEndpointPreset: input.defaultEndpointPreset,
+      });
+      if (!updated) {
+        throw new Error("API key not found");
+      }
+      return updated;
+    }),
+
+  revoke: publicProcedure
+    .input(z.object({ id: z.string(), appId: z.string() }))
+    .mutation(({ input }) => {
+      const revoked = revokeApiKey(input.id, input.appId);
+      if (!revoked) {
+        throw new Error("API key not found or already revoked");
+      }
+      return { ok: true };
     }),
 
   delete: publicProcedure

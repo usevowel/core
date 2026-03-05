@@ -12,7 +12,7 @@ import { handleGenerateToken } from "../server/token";
 
 describe("Vowel Core Full Flow E2E", () => {
   beforeAll(() => {
-    process.env.DB_PATH = ":memory:";
+    process.env.DB_PATH ??= "./data/core.test.db";
     process.env.ENCRYPTION_KEY = "test-encryption-key-32-chars-long-ok";
     initDb();
   });

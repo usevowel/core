@@ -28,8 +28,8 @@ export const appsRoutes = new Elysia({ prefix: "/api" })
     }
     return createApp(input);
   })
-  .get("/apps/:id", ({ params }) => {
-    const app = getApp(params.id);
+  .get("/apps/:appId", ({ params }) => {
+    const app = getApp(params.appId);
     if (!app) {
       return new Response(
         JSON.stringify({ message: "App not found" }),
@@ -38,9 +38,9 @@ export const appsRoutes = new Elysia({ prefix: "/api" })
     }
     return app;
   })
-  .patch("/apps/:id", ({ params, body }) => {
+  .patch("/apps/:appId", ({ params, body }) => {
     const input = body as UpdateAppInput;
-    const app = updateApp(params.id, input);
+    const app = updateApp(params.appId, input);
     if (!app) {
       return new Response(
         JSON.stringify({ message: "App not found" }),
@@ -49,8 +49,8 @@ export const appsRoutes = new Elysia({ prefix: "/api" })
     }
     return app;
   })
-  .delete("/apps/:id", ({ params }) => {
-    const deleted = deleteApp(params.id);
+  .delete("/apps/:appId", ({ params }) => {
+    const deleted = deleteApp(params.appId);
     if (!deleted) {
       return new Response(
         JSON.stringify({ message: "App not found" }),

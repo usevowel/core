@@ -11,7 +11,7 @@
     "build:server": "bun build src/server/index.ts --outdir=dist --target=bun",
     "start": "bun run src/server/index.ts",
     "db:init": "bun run src/db/init.ts",
-    "test": "bun test",
+    "test": "DB_PATH=./data/core.test.db bun test",
     "start:docker": "./scripts/docker-start.sh",
     "dev:stack": "bun run scripts/dev-stack.ts",
     "dev:tunnel": "bun run scripts/dev-tunnel.ts",

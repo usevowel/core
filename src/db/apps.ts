@@ -80,6 +80,46 @@ export function createApp(input: CreateAppInput): App {
 }
 
 /**
+ * Ensure an app exists with a fixed ID (used for bootstrap flows).
+ */
+export function ensureApp(input: {
+  id: string;
+  name: string;
+  description?: string;
+  defaultProvider?: string;
+}): App {
+  const existing = getApp(input.id);
+  if (existing) {
+    return existing;
+  }
+
+  const now = Date.now();
+  const db = getDb();
+  db.run(
+    `INSERT INTO apps (id, name, description, default_provider, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      input.id,
+      input.name,
+      input.description ?? null,
+      input.defaultProvider ?? null,
+      now,
+      now,
+    ]
+  );
+  db.close();
+
+  return {
+    id: input.id,
+    name: input.name,
+    description: input.description ?? null,
+    defaultProvider: input.defaultProvider ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
  * List all apps.
  */
 export function listApps(): App[] {
