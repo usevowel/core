@@ -278,7 +278,7 @@ describe("Vowel Core API", () => {
       }
     });
 
-    test("preserves tools and instructions when minting a vowel-prime token", async () => {
+    test("keeps browser session config out of the vowel-prime token payload", async () => {
       const restoreEnv = setEnv({
         SNDBRD_API_KEY: "dev-test-sndbrd-key",
         OPENAI_API_KEY: undefined,
@@ -357,7 +357,6 @@ describe("Vowel Core API", () => {
         expect(capturedRequestBody).toMatchObject({
           model: "openai/gpt-oss-120b",
           voice: "Timothy",
-          instructions: "Custom instructions from client",
           llmProvider: "groq",
           turnDetection: {
             mode: "server_vad",
@@ -367,38 +366,8 @@ describe("Vowel Core API", () => {
             },
           },
         });
-        expect(capturedRequestBody?.tools).toEqual([
-          {
-            type: "function",
-            name: "navigate",
-            description: "Navigate to a route",
-            parameters: {
-              type: "object",
-              properties: {
-                path: {
-                  type: "string",
-                  description: "The path to navigate to",
-                },
-              },
-              required: ["path"],
-            },
-          },
-          {
-            type: "function",
-            name: "addToCart",
-            description: "Add a product to cart",
-            parameters: {
-              type: "object",
-              properties: {
-                productId: {
-                  type: "string",
-                  description: "The product identifier",
-                },
-              },
-              required: ["productId"],
-            },
-          },
-        ]);
+        expect(capturedRequestBody?.instructions).toBeUndefined();
+        expect(capturedRequestBody?.tools).toBeUndefined();
 
         const json = await res.json();
         expect(json).toMatchObject({
@@ -407,6 +376,7 @@ describe("Vowel Core API", () => {
           provider: "vowel-prime",
           systemInstructions: "Custom instructions from client",
         });
+        expect(json.metadata?.sessionConfigDeliveredViaClient).toBe(true);
       } finally {
         globalThis.fetch = originalFetch;
         restoreEnv();

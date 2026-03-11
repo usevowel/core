@@ -202,54 +202,6 @@ RULES:
 3. Confirm what you are doing when taking an action`;
 }
 
-function convertActionsToTools(
-  actions: NonNullable<NonNullable<TokenRequestBody["config"]>["actions"]>
-): Array<{
-  type: "function";
-  name: string;
-  description: string;
-  parameters: {
-    type: "object";
-    properties: Record<string, Record<string, unknown>>;
-    required: string[];
-  };
-}> {
-  return Object.entries(actions).map(([name, action]) => {
-    const properties: Record<string, Record<string, unknown>> = {};
-    const required: string[] = [];
-
-    for (const [paramName, paramDef] of Object.entries(action.parameters ?? {})) {
-      properties[paramName] = {
-        type: paramDef.type,
-        description: paramDef.description,
-      };
-
-      if (paramDef.enum) {
-        properties[paramName].enum = paramDef.enum;
-      }
-
-      if (paramDef.items) {
-        properties[paramName].items = paramDef.items;
-      }
-
-      if (!paramDef.optional) {
-        required.push(paramName);
-      }
-    }
-
-    return {
-      type: "function" as const,
-      name,
-      description: action.description,
-      parameters: {
-        type: "object" as const,
-        properties,
-        required,
-      },
-    };
-  });
-}
-
 /**
  * Handle token generation with Bearer auth
  * @param body - Token request body
@@ -285,7 +237,7 @@ export async function handleGenerateToken(
   const model =
     voiceConfig?.model ??
     (provider === "vowel-prime"
-      ? "openai/gpt-oss-120b"
+      ? "openai/gpt-oss-20b"
       : "gpt-realtime");
   const voice = voiceConfig?.voice ?? (provider === "vowel-prime" ? "Ashley" : "alloy");
 
@@ -316,32 +268,21 @@ export async function handleGenerateToken(
 
     const endpoint = `${preset.httpUrl}/v1/realtime/sessions`;
     const providerApiKey = requireProviderSecret("vowel-prime");
-    const tools = convertActionsToTools(body.config?.actions ?? {});
     const {
       model: _model,
       voice: _voice,
       language: _language,
       vowelPrimeConfig: _vowelPrimeConfig,
       openrouterOptions,
-      initialGreetingPrompt: voiceConfigGreeting,
       ...otherVoiceConfig
     } = voiceConfig ?? {};
 
     const requestBody: Record<string, unknown> = {
       model,
       voice,
-      tools,
       ...otherVoiceConfig,
     };
 
-    const initialGreetingPrompt =
-      body.config?.initialGreetingPrompt ?? voiceConfigGreeting;
-    if (initialGreetingPrompt) {
-      requestBody.initialGreetingPrompt = initialGreetingPrompt;
-    }
-    if (systemInstructions) {
-      requestBody.instructions = systemInstructions;
-    }
     if (voiceConfig?.llmProvider) {
       requestBody.llmProvider = voiceConfig.llmProvider;
       if (voiceConfig.llmProvider === "openrouter" && openrouterOptions) {
@@ -391,6 +332,7 @@ export async function handleGenerateToken(
         voice,
         audioFormat: "pcm16",
         sampleRate: 24000,
+        sessionConfigDeliveredViaClient: true,
       },
       systemInstructions,
     };

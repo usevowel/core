@@ -9,7 +9,7 @@ FROM oven/bun:1.2-alpine AS ui-builder
 WORKDIR /app/ui
 
 # Copy UI dependencies
-COPY ui/package.json ui/bun.lockb ./
+COPY ui/package.json ui/bun.lock ./
 RUN bun install --frozen-lockfile
 
 # Copy UI source and build
@@ -24,7 +24,7 @@ FROM oven/bun:1.2-alpine AS server-builder
 WORKDIR /app
 
 # Copy server dependencies
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 # Copy server source
@@ -44,7 +44,7 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production

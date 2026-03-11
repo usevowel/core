@@ -366,7 +366,12 @@ export async function revealApiKeyPlaintext(
 export async function validateApiKey(
   plaintextKey: string
 ): Promise<ValidatedApiKey | null> {
-  const keyHash = hashKey(plaintextKey);
+  const normalizedKey = plaintextKey.trim();
+  if (!normalizedKey) {
+    return null;
+  }
+
+  const keyHash = hashKey(normalizedKey);
 
   const db = getDb();
   const row = db
@@ -389,7 +394,7 @@ export async function validateApiKey(
       secret
     );
 
-    if (decrypted !== plaintextKey) {
+    if (decrypted !== normalizedKey) {
       return null;
     }
 
