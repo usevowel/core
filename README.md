@@ -2,8 +2,6 @@
 
 Self-hosted token service + Web UI for the vowel platform. Ephemeral token minting for sndbrd, OpenAI Realtime, and Grok Realtime. Create apps, API keys, and generate tokens.
 
-**No auth. No billing. No Convex.** Single Docker container.
-
 ![Vowel Core UI](assets/VowelCoreUI.png)
 
 ## Quick Start
