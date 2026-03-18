@@ -1,6 +1,6 @@
 # Vowel Core
 
-Self-hosted token service + Web UI for the vowel platform. Ephemeral token minting for sndbrd, OpenAI Realtime, and Grok Realtime. Create apps, API keys, and generate tokens.
+Self-hosted token service + Web UI for the vowel platform. Ephemeral token minting for Vowel Engine, OpenAI Realtime, and Grok Realtime. Create apps, API keys, and generate tokens.
 
 ![Vowel Core UI](assets/VowelCoreUI.png)
 
