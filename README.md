@@ -61,6 +61,4 @@ bun run dev:tunnel:production # uses core.vowel.to (requires caution)
 
 See `.env.example` for required variables.
 
-## Plan
 
-See [`.ai/plans/mar-26/core-self-hosted/`](../.ai/plans/mar-26/core-self-hosted/README.md) for the self-hosted Core plan and [`.ai/plans/local-docker-stack/`](../.ai/plans/local-docker-stack/README.md) for the Core + sndbrd Docker Compose plan.
