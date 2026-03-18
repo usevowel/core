@@ -29,30 +29,6 @@ bun run dev:stack
 
 Open http://localhost:3000
 
-## Docker
-
-```bash
-cd ..
-cp stack/stack.env.example stack.env
-bun run stack:up
-```
-
-The recommended self-hosted stack now lives at the repo root. It starts:
-- Core on `http://localhost:3000`
-- sndbrd Bun runtime on `ws://localhost:8787/v1/realtime`
-
-After startup, run:
-
-```bash
-bun run stack:test
-```
-
-This verifies Core health, sndbrd health, Core token minting, and a live WebSocket handshake against sndbrd.
-
-`core/docker-compose.yml` remains useful for Core-only iteration, but `stack/docker-compose.yml` is the main open-source self-hosted stack.
-
-If `3000` or `8787` are already in use on the host, set `CORE_HOST_PORT` and `SNDBRD_HOST_PORT` in `stack.env`.
-
 ## Tests
 
 ```bash
