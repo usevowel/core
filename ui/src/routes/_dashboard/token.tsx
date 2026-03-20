@@ -11,18 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Key } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface App {
   id: string;
   name: string;
-}
-
-interface EndpointPreset {
-  id: string;
-  name: string;
-  provider: string;
-  enabled: boolean;
 }
 
 export const Route = createFileRoute("/_dashboard/token")({
@@ -33,39 +26,21 @@ function TokenPage() {
   const [provider, setProvider] = useState<"vowel-prime" | "openai" | "grok">("vowel-prime");
   const [apiKey, setApiKey] = useState("");
   const [appId, setAppId] = useState("");
-  const [endpointPreset, setEndpointPreset] = useState("staging");
 
   const [apps, setApps] = useState<App[]>([]);
-  const [presets, setPresets] = useState<EndpointPreset[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const vowelPrimePresets = useMemo(
-    () => presets.filter((preset) => preset.provider === "vowel-prime" && preset.enabled),
-    [presets]
-  );
-
   useEffect(() => {
     const load = async () => {
       try {
-        const [appsRes, presetsRes] = await Promise.all([
-          fetch("/api/apps"),
-          fetch("/api/endpoint-presets?provider=vowel-prime"),
-        ]);
+        const appsRes = await fetch("/api/apps");
         if (appsRes.ok) {
           const appData = (await appsRes.json()) as App[];
           setApps(appData);
           if (appData[0] && !appId) {
             setAppId(appData[0].id);
-          }
-        }
-        if (presetsRes.ok) {
-          const presetData = (await presetsRes.json()) as EndpointPreset[];
-          setPresets(presetData);
-          if (presetData.length > 0) {
-            const hasStaging = presetData.some((preset) => preset.name === "staging");
-            setEndpointPreset(hasStaging ? "staging" : presetData[0].name);
           }
         }
       } catch {
@@ -91,14 +66,6 @@ function TokenPage() {
         origin: window.location.origin,
         config: {
           provider,
-          voiceConfig:
-            provider === "vowel-prime"
-              ? {
-                  vowelPrimeConfig: {
-                    endpointPreset,
-                  },
-                }
-              : {},
         },
       };
 
@@ -129,7 +96,7 @@ function TokenPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Generate token</h1>
           <p className="mt-1 text-muted-foreground">
-            Test minting with a publishable `vkey_*` and endpoint preset policy.
+            Test minting with a publishable `vkey_*` against the configured self-hosted engine.
           </p>
         </div>
 
@@ -140,7 +107,7 @@ function TokenPage() {
               Token generator
             </CardTitle>
             <CardDescription>
-              Uses `Authorization: Bearer vkey_*` and validates provider + endpoint preset policy.
+              Uses `Authorization: Bearer vkey_*` and validates provider policy before minting.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -187,24 +154,6 @@ function TokenPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            {provider === "vowel-prime" && (
-              <div className="space-y-2">
-                <Label>Endpoint preset</Label>
-                <Select value={endpointPreset} onValueChange={setEndpointPreset}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select endpoint preset" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vowelPrimePresets.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.name}>
-                        {preset.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <Button onClick={handleGenerate} disabled={loading || !apiKey.trim()} className="w-full">
               {loading ? "Generating…" : "Generate token"}

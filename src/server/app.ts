@@ -22,6 +22,7 @@ import { statusRoutes } from "./routes/status";
 import { appsRoutes } from "./routes/apps";
 import { apiKeysRoutes } from "./routes/api-keys";
 import { endpointPresetRoutes } from "./routes/endpoint-presets";
+import { engineConfigRoutes } from "./routes/engine-config";
 
 /** API port when running alongside vinext (Docker). */
 const API_PORT = parseInt(process.env.API_PORT ?? "3001", 10);
@@ -210,6 +211,7 @@ let app = new Elysia()
   // REST token endpoint (SDK compatibility)
   .post("/vowel/api/generateToken", ({ request }) => tokenHandler(request))
   .use(statusRoutes)
+  .use(engineConfigRoutes)
   .use(appsRoutes)
   .use(apiKeysRoutes)
   .use(endpointPresetRoutes)

@@ -4,10 +4,6 @@
  */
 
 import { validateApiKey } from "../db/api-keys";
-import {
-  getEndpointPresetByName,
-  getEndpointPresetByUrl,
-} from "../db/endpoint-presets";
 
 export interface TokenRequestBody {
   appId?: string;
@@ -62,11 +58,6 @@ export interface TokenRequestBody {
           prefixPaddingMs?: number;
           silenceDurationMs?: number;
         };
-      };
-      vowelPrimeConfig?: {
-        endpointPreset?: string;
-        environment?: string;
-        workerUrl?: string;
       };
     };
   };
@@ -128,42 +119,26 @@ function ensureAllowedProvider(
   }
 }
 
-function resolveVowelPrimePresetName(input: {
-  endpointPreset?: string;
-  environment?: string;
-  workerUrl?: string;
-  defaultPreset?: string | null;
-}): string {
-  if (input.endpointPreset?.trim()) {
-    return input.endpointPreset.trim();
+function getVowelEngineBaseUrl(): string {
+  const baseUrl = process.env.SNDBRD_URL?.trim();
+  if (!baseUrl) {
+    throw new TokenRequestError(500, "SNDBRD_URL is not configured");
   }
-
-  if (input.environment?.trim()) {
-    return input.environment.trim();
-  }
-
-  if (input.workerUrl?.trim()) {
-    const normalizedWorker = input.workerUrl.trim().replace(/\/$/, "");
-    const fromUrl = getEndpointPresetByUrl("vowel-prime", normalizedWorker);
-    if (!fromUrl) {
-      throw new TokenRequestError(
-        400,
-        "workerUrl must match a configured endpoint preset"
-      );
-    }
-    return fromUrl.name;
-  }
-
-  return input.defaultPreset?.trim() || "staging";
+  return baseUrl.replace(/\/$/, "");
 }
 
-function ensureAllowedPreset(presetName: string, allowedPresetNames: string[]): void {
-  if (!allowedPresetNames.includes(presetName)) {
-    throw new TokenRequestError(
-      403,
-      `Endpoint preset '${presetName}' is not allowed for this publishable key`
-    );
+function getVowelEngineWebsocketUrl(): string {
+  const configuredWsUrl = process.env.SNDBRD_WS_URL?.trim();
+  if (configuredWsUrl) {
+    return configuredWsUrl.replace(/\/$/, "");
   }
+
+  const baseUrl = getVowelEngineBaseUrl();
+  return baseUrl.startsWith("https://")
+    ? `wss://${baseUrl.slice("https://".length)}`
+    : baseUrl.startsWith("http://")
+      ? `ws://${baseUrl.slice("http://".length)}`
+      : baseUrl;
 }
 
 function buildSystemInstructions(config: TokenRequestBody["config"], appId: string): string {
@@ -290,31 +265,7 @@ export async function handleGenerateToken(
   const voice = voiceConfig?.voice ?? (provider === "vowel-prime" ? "Ashley" : "alloy");
 
   if (provider === "vowel-prime") {
-    const vowelPrimeConfig = voiceConfig?.vowelPrimeConfig;
-    const presetName = resolveVowelPrimePresetName({
-      endpointPreset: vowelPrimeConfig?.endpointPreset,
-      environment: vowelPrimeConfig?.environment,
-      workerUrl: vowelPrimeConfig?.workerUrl,
-      defaultPreset: validation.defaultEndpointPreset,
-    });
-
-    ensureAllowedPreset(presetName, validation.allowedEndpointPresets);
-
-    const preset = getEndpointPresetByName("vowel-prime", presetName);
-    if (!preset) {
-      throw new TokenRequestError(
-        400,
-        `Unknown endpoint preset '${presetName}' for vowel-prime`
-      );
-    }
-    if (!preset.enabled) {
-      throw new TokenRequestError(
-        400,
-        `Endpoint preset '${presetName}' is currently disabled`
-      );
-    }
-
-    const endpoint = `${preset.httpUrl}/v1/realtime/sessions`;
+    const endpoint = `${getVowelEngineBaseUrl()}/v1/realtime/sessions`;
     const providerApiKey = requireProviderSecret("vowel-prime");
     const tools = convertActionsToTools(body.config?.actions ?? {});
     const {
@@ -386,8 +337,7 @@ export async function handleGenerateToken(
       provider: "vowel-prime",
       expiresAt: new Date(expiresAt * 1000).toISOString(),
       metadata: {
-        baseUrl: preset.wsUrl,
-        endpointPreset: presetName,
+        baseUrl: getVowelEngineWebsocketUrl(),
         voice,
         audioFormat: "pcm16",
         sampleRate: 24000,

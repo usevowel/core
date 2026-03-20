@@ -4,8 +4,9 @@
 
 import { Elysia } from "elysia";
 import { listEndpointPresets } from "../../db/endpoint-presets";
+import { getEngineHealth } from "../engine-config";
 
-export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", () => {
+export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async () => {
   const providers = {
     "vowel-prime": {
       configured: Boolean(process.env.SNDBRD_API_KEY),
@@ -27,8 +28,36 @@ export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", () => 
     return acc;
   }, {});
 
+  let engine: {
+    reachable: boolean;
+    url: string | null;
+    configPath?: string;
+    configLastUpdated?: string;
+    error?: string;
+  } = {
+    reachable: false,
+    url: process.env.SNDBRD_URL ?? null,
+  };
+
+  try {
+    const health = await getEngineHealth();
+    engine = {
+      reachable: true,
+      url: process.env.SNDBRD_URL ?? null,
+      configPath: health.configPath,
+      configLastUpdated: health.configLastUpdated,
+    };
+  } catch (error) {
+    engine = {
+      reachable: false,
+      url: process.env.SNDBRD_URL ?? null,
+      error: error instanceof Error ? error.message : "Engine health request failed",
+    };
+  }
+
   return {
     providers,
+    engine,
     endpointPresets: {
       total: presets.length,
       enabled: presets.filter((preset) => preset.enabled).length,

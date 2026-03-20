@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Layers, Plus, Key, RefreshCw, Trash2, Ban, CheckCircle, Eye, EyeOff, Copy, Check } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface App {
   id: string;
@@ -30,17 +30,8 @@ interface ApiKey {
   label: string | null;
   masked: string;
   allowedProviders: string[];
-  allowedEndpointPresets: string[];
-  defaultEndpointPreset: string | null;
   revokedAt: number | null;
   createdAt: number;
-}
-
-interface EndpointPreset {
-  id: string;
-  name: string;
-  provider: string;
-  enabled: boolean;
 }
 
 const PROVIDERS = ["vowel-prime", "openai", "grok"] as const;
@@ -52,7 +43,6 @@ export const Route = createFileRoute("/_dashboard/apps")({
 function AppsPage() {
   const [apps, setApps] = useState<App[]>([]);
   const [keysByApp, setKeysByApp] = useState<Record<string, ApiKey[]>>({});
-  const [presets, setPresets] = useState<EndpointPreset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,17 +56,10 @@ function AppsPage() {
   const [scopeMintEphemeral, setScopeMintEphemeral] = useState(true);
   const [scopeDirectWs, setScopeDirectWs] = useState(false);
   const [allowedProviders, setAllowedProviders] = useState<string[]>(["vowel-prime"]);
-  const [allowedEndpointPresets, setAllowedEndpointPresets] = useState<string[]>(["staging"]);
-  const [defaultEndpointPreset, setDefaultEndpointPreset] = useState("staging");
   const [createdPlaintextKey, setCreatedPlaintextKey] = useState<string | null>(null);
   const [revealedByKeyId, setRevealedByKeyId] = useState<Record<string, string>>({});
   const [visibleKeyIds, setVisibleKeyIds] = useState<Record<string, boolean>>({});
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
-
-  const vowelPrimePresets = useMemo(
-    () => presets.filter((preset) => preset.provider === "vowel-prime" && preset.enabled),
-    [presets]
-  );
 
   const loadApps = async () => {
     const res = await fetch("/api/apps");
@@ -86,15 +69,6 @@ function AppsPage() {
     const data = (await res.json()) as App[];
     setApps(data);
     return data;
-  };
-
-  const loadPresets = async () => {
-    const res = await fetch("/api/endpoint-presets?provider=vowel-prime");
-    if (!res.ok) {
-      throw new Error(`Failed to load endpoint presets (${res.status})`);
-    }
-    const data = (await res.json()) as EndpointPreset[];
-    setPresets(data);
   };
 
   const loadKeys = async (appId: string) => {
@@ -111,7 +85,6 @@ function AppsPage() {
     setError(null);
     try {
       const appList = await loadApps();
-      await loadPresets();
       await Promise.all(appList.map((app) => loadKeys(app.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load apps");
@@ -153,20 +126,12 @@ function AppsPage() {
     setScopeMintEphemeral(true);
     setScopeDirectWs(false);
     setAllowedProviders(["vowel-prime"]);
-    setAllowedEndpointPresets(["staging"]);
-    setDefaultEndpointPreset("staging");
     setCreateKeyOpen(true);
   };
 
   const toggleAllowedProvider = (provider: string) => {
     setAllowedProviders((prev) =>
       prev.includes(provider) ? prev.filter((p) => p !== provider) : [...prev, provider]
-    );
-  };
-
-  const toggleAllowedPreset = (preset: string) => {
-    setAllowedEndpointPresets((prev) =>
-      prev.includes(preset) ? prev.filter((p) => p !== preset) : [...prev, preset]
     );
   };
 
@@ -189,11 +154,6 @@ function AppsPage() {
       return;
     }
 
-    if (allowedEndpointPresets.length === 0) {
-      setError("Select at least one allowed endpoint preset.");
-      return;
-    }
-
     const res = await fetch(`/api/apps/${targetAppId}/api-keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -201,8 +161,6 @@ function AppsPage() {
         label: newKeyLabel || undefined,
         scopes,
         allowedProviders,
-        allowedEndpointPresets,
-        defaultEndpointPreset,
       }),
     });
 
@@ -424,37 +382,6 @@ function AppsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Allowed endpoint presets</Label>
-                <div className="flex flex-wrap gap-2 text-sm">
-                  {vowelPrimePresets.map((preset) => (
-                    <label key={preset.id} className="flex items-center gap-2 rounded border border-border px-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={allowedEndpointPresets.includes(preset.name)}
-                        onChange={() => toggleAllowedPreset(preset.name)}
-                      />
-                      {preset.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Default endpoint preset</Label>
-                <select
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={defaultEndpointPreset}
-                  onChange={(event) => setDefaultEndpointPreset(event.target.value)}
-                >
-                  {vowelPrimePresets.map((preset) => (
-                    <option key={preset.id} value={preset.name}>
-                      {preset.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {createdPlaintextKey && (
                 <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
                   <p className="font-medium text-emerald-300">Publishable key:</p>
@@ -546,10 +473,7 @@ function AppsPage() {
                                     )}
                                   </div>
                                   <p className="text-xs text-muted-foreground">
-                                    Providers: {key.allowedProviders.join(", ")} · Presets: {key.allowedEndpointPresets.join(", ")}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Default preset: {key.defaultEndpointPreset || "none"}
+                                    Providers: {key.allowedProviders.join(", ")}
                                   </p>
                                 </div>
                                 <div className="flex gap-2">

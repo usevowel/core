@@ -56,12 +56,6 @@ export async function bootstrapCoreDataFromEnv(): Promise<void> {
   const allowedProviders = parseProviders(
     process.env.CORE_BOOTSTRAP_ALLOWED_PROVIDERS
   );
-  const allowedEndpointPresets = parseList(
-    process.env.CORE_BOOTSTRAP_ALLOWED_ENDPOINT_PRESETS
-  );
-  const defaultEndpointPreset =
-    process.env.CORE_BOOTSTRAP_DEFAULT_ENDPOINT_PRESET?.trim() || undefined;
-
   ensureApp({
     id: appId,
     name: appName,
@@ -75,8 +69,6 @@ export async function bootstrapCoreDataFromEnv(): Promise<void> {
     label,
     scopes,
     allowedProviders,
-    allowedEndpointPresets,
-    defaultEndpointPreset,
   });
 
   console.log(

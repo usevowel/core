@@ -1,55 +1,53 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Settings,
-  Plus,
-  Bot,
-  Cpu,
-  Zap,
-  CheckCircle,
-  XCircle,
-  Globe,
-  Trash2,
-  Pencil,
-} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Bot,
+  CheckCircle,
+  Cpu,
+  Database,
+  RefreshCw,
+  Save,
+  Settings,
+  ShieldCheck,
+  Wand2,
+  XCircle,
+  Zap,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ProviderStatus {
   configured: boolean;
   secretEnv: string;
 }
 
-interface StatusResponse {
-  providers: Record<string, ProviderStatus>;
-  endpointPresets?: {
-    total: number;
-    enabled: number;
-    system: number;
-    byProvider: Record<string, number>;
-  };
+interface EngineStatus {
+  reachable: boolean;
+  url: string | null;
+  configPath?: string;
+  configLastUpdated?: string;
+  error?: string;
 }
 
-interface EndpointPreset {
+interface StatusResponse {
+  providers: Record<string, ProviderStatus>;
+  engine?: EngineStatus;
+}
+
+interface EngineConfigResponse {
+  version: number;
+  lastUpdated: string;
+  path: string;
+  config: Record<string, unknown>;
+}
+
+interface EnginePreset {
   id: string;
   name: string;
-  provider: "vowel-prime" | "openai" | "grok";
-  httpUrl: string;
-  wsUrl: string;
-  isSystem: boolean;
-  enabled: boolean;
+  description: string;
+  config: Record<string, unknown>;
 }
 
 const PROVIDER_OPTIONS = [
@@ -64,39 +62,63 @@ export const Route = createFileRoute("/_dashboard/providers")({
 
 function ProvidersPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [presets, setPresets] = useState<EndpointPreset[]>([]);
+  const [engineConfig, setEngineConfig] = useState<EngineConfigResponse | null>(null);
+  const [presets, setPresets] = useState<EnginePreset[]>([]);
+  const [editorValue, setEditorValue] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editPresetId, setEditPresetId] = useState<string | null>(null);
-  const [provider, setProvider] = useState<EndpointPreset["provider"]>("vowel-prime");
-  const [name, setName] = useState("");
-  const [httpUrl, setHttpUrl] = useState("");
-  const [wsUrl, setWsUrl] = useState("");
+  const providerStatus = status?.providers ?? {
+    "vowel-prime": { configured: false, secretEnv: "SNDBRD_API_KEY" },
+    openai: { configured: false, secretEnv: "OPENAI_API_KEY" },
+    grok: { configured: false, secretEnv: "XAI_API_KEY" },
+  };
+
+  const engineStatus = status?.engine;
+
+  const normalizedEditorValue = useMemo(() => editorValue.trim(), [editorValue]);
 
   const refresh = async () => {
     setLoading(true);
     setError(null);
+    setMessage(null);
+
     try {
-      const [statusRes, presetsRes] = await Promise.all([
+      const [statusRes, configRes, presetsRes] = await Promise.all([
         fetch("/api/status"),
-        fetch("/api/endpoint-presets"),
+        fetch("/api/engine/config"),
+        fetch("/api/engine/presets"),
       ]);
 
       if (!statusRes.ok) {
         throw new Error(`Failed to load status (${statusRes.status})`);
       }
-      if (!presetsRes.ok) {
-        throw new Error(`Failed to load endpoint presets (${presetsRes.status})`);
+
+      const statusData = (await statusRes.json()) as StatusResponse;
+      setStatus(statusData);
+
+      if (!configRes.ok) {
+        const configError = await configRes.json().catch(() => ({ message: "Request failed" }));
+        throw new Error(configError.message || `Failed to load engine config (${configRes.status})`);
       }
 
-      setStatus(await statusRes.json());
-      setPresets(await presetsRes.json());
+      const configData = (await configRes.json()) as EngineConfigResponse;
+      setEngineConfig(configData);
+      setEditorValue(JSON.stringify(configData.config, null, 2));
+
+      if (presetsRes.ok) {
+        setPresets((await presetsRes.json()) as EnginePreset[]);
+      } else {
+        setPresets([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load provider settings");
       setStatus(null);
+      setEngineConfig(null);
       setPresets([]);
+      setEditorValue("");
     } finally {
       setLoading(false);
     }
@@ -106,168 +128,114 @@ function ProvidersPage() {
     void refresh();
   }, []);
 
-  const providerStatus = status?.providers ?? {
-    "vowel-prime": { configured: false, secretEnv: "SNDBRD_API_KEY" },
-    openai: { configured: false, secretEnv: "OPENAI_API_KEY" },
-    grok: { configured: false, secretEnv: "XAI_API_KEY" },
+  const parseEditorConfig = (): Record<string, unknown> => {
+    if (!normalizedEditorValue) {
+      throw new Error("Engine config JSON cannot be empty.");
+    }
+
+    const parsed = JSON.parse(normalizedEditorValue) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Engine config must be a JSON object.");
+    }
+    return parsed as Record<string, unknown>;
   };
 
-  const groupedPresets = useMemo(() => {
-    return presets.reduce<Record<string, EndpointPreset[]>>((acc, preset) => {
-      if (!acc[preset.provider]) {
-        acc[preset.provider] = [];
-      }
-      acc[preset.provider].push(preset);
-      return acc;
-    }, {});
-  }, [presets]);
-
-  const resetForm = () => {
-    setEditPresetId(null);
-    setProvider("vowel-prime");
-    setName("");
-    setHttpUrl("");
-    setWsUrl("");
-  };
-
-  const openCreateDialog = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-
-  const openEditDialog = (preset: EndpointPreset) => {
-    setEditPresetId(preset.id);
-    setProvider(preset.provider);
-    setName(preset.name);
-    setHttpUrl(preset.httpUrl);
-    setWsUrl(preset.wsUrl);
-    setDialogOpen(true);
-  };
-
-  const submitPreset = async () => {
+  const validateConfig = async () => {
+    setSaving(true);
     setError(null);
-    const payload = {
-      provider,
-      name,
-      httpUrl,
-      wsUrl,
-      enabled: true,
-    };
+    setMessage(null);
 
     try {
-      const res = await fetch(
-        editPresetId ? `/api/endpoint-presets/${editPresetId}` : "/api/endpoint-presets",
-        {
-          method: editPresetId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const config = parseEditorConfig();
+      const res = await fetch("/api/engine/config/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      });
+
+      const data = await res.json().catch(() => ({ message: "Validation failed" }));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ message: "Request failed" }));
-        throw new Error(data.message || `Request failed (${res.status})`);
+        throw new Error(data.message || `Validation failed (${res.status})`);
       }
-      setDialogOpen(false);
-      resetForm();
-      await refresh();
+
+      setMessage("Engine config is valid.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save endpoint preset");
+      setError(err instanceof Error ? err.message : "Failed to validate engine config");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const deletePreset = async (preset: EndpointPreset) => {
-    if (preset.isSystem) return;
+  const saveConfig = async () => {
+    setSaving(true);
     setError(null);
+    setMessage(null);
+
     try {
-      const res = await fetch(`/api/endpoint-presets/${preset.id}`, { method: "DELETE" });
+      const config = parseEditorConfig();
+      const res = await fetch("/api/engine/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      });
+
+      const data = await res.json().catch(() => ({ message: "Save failed" }));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ message: "Delete failed" }));
-        throw new Error(data.message || `Delete failed (${res.status})`);
+        throw new Error(data.message || `Save failed (${res.status})`);
       }
+
+      const response = data as EngineConfigResponse;
+      setEngineConfig(response);
+      setEditorValue(JSON.stringify(response.config, null, 2));
+      setMessage("Engine config saved.");
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete endpoint preset");
+      setError(err instanceof Error ? err.message : "Failed to save engine config");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reloadConfig = async () => {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const res = await fetch("/api/engine/config/reload", {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({ message: "Reload failed" }));
+      if (!res.ok) {
+        throw new Error(data.message || `Reload failed (${res.status})`);
+      }
+
+      const response = data as EngineConfigResponse;
+      setEngineConfig(response);
+      setEditorValue(JSON.stringify(response.config, null, 2));
+      setMessage("Engine config reloaded from disk.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reload engine config");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className="p-6 lg:p-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">API Providers</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Engine Config</h1>
             <p className="mt-1 text-muted-foreground">
-              Provider secrets are environment-only in Core. Manage endpoint presets used by publishable API keys.
+              Core acts as a client of the self-hosted engine config API. The engine persists the canonical YAML on its Docker volume.
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openCreateDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add endpoint preset
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editPresetId ? "Edit endpoint preset" : "Add endpoint preset"}</DialogTitle>
-                <DialogDescription>
-                  Endpoint presets define where Core mints and connects realtime sessions.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>Provider</Label>
-                  <select
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={provider}
-                    onChange={(event) => setProvider(event.target.value as EndpointPreset["provider"])}
-                    disabled={Boolean(editPresetId)}
-                  >
-                    {PROVIDER_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    placeholder="e.g. staging"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>HTTP URL</Label>
-                  <Input
-                    placeholder="https://staging.prime.vowel.to"
-                    value={httpUrl}
-                    onChange={(event) => setHttpUrl(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>WebSocket URL</Label>
-                  <Input
-                    placeholder="wss://staging.prime.vowel.to/v1/realtime"
-                    value={wsUrl}
-                    onChange={(event) => setWsUrl(event.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => void submitPreset()}
-                  disabled={!name.trim() || !httpUrl.trim() || !wsUrl.trim()}
-                >
-                  {editPresetId ? "Save changes" : "Create preset"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" onClick={() => void refresh()} disabled={loading || saving}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
         </div>
 
         {error && (
@@ -276,118 +244,161 @@ function ProvidersPage() {
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Provider secret status
-            </CardTitle>
-            <CardDescription>
-              Configure provider API secrets in `core/.env` (or deployment environment), not in the UI.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {PROVIDER_OPTIONS.map(({ value, label, icon: Icon }) => {
-                const state = providerStatus[value];
-                const configured = state?.configured ?? false;
-                return (
-                  <div key={value} className="rounded-lg border border-border bg-card p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                        <Icon className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-medium">{label}</p>
-                        <p className="text-xs text-muted-foreground">Env: {state?.secretEnv ?? "N/A"}</p>
-                        <Badge variant={configured ? "success" : "secondary"} className="w-fit">
-                          {configured ? (
-                            <>
-                              <CheckCircle className="mr-1 h-3 w-3" />
-                              Configured
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="mr-1 h-3 w-3" />
-                              Not set
-                            </>
-                          )}
-                        </Badge>
+        {message && (
+          <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+            {message}
+          </div>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" />
+                Provider secret status
+              </CardTitle>
+              <CardDescription>
+                Provider secrets still come from environment variables. The engine runtime config is edited separately below.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {PROVIDER_OPTIONS.map(({ value, label, icon: Icon }) => {
+                  const state = providerStatus[value];
+                  const configured = state?.configured ?? false;
+                  return (
+                    <div key={value} className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                          <Icon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-medium">{label}</p>
+                          <p className="text-xs text-muted-foreground">Env: {state?.secretEnv ?? "N/A"}</p>
+                          <Badge variant={configured ? "success" : "secondary"} className="w-fit">
+                            {configured ? (
+                              <>
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Configured
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="mr-1 h-3 w-3" />
+                                Not set
+                              </>
+                            )}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Engine status
+              </CardTitle>
+              <CardDescription>
+                Connectivity and persisted config metadata for the self-hosted engine.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Badge variant={engineStatus?.reachable ? "success" : "secondary"}>
+                  {engineStatus?.reachable ? "Reachable" : "Unavailable"}
+                </Badge>
+                <span className="text-muted-foreground">{engineStatus?.url ?? "No engine URL configured"}</span>
+              </div>
+              <div>
+                <p className="font-medium">Config path</p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {engineStatus?.configPath ?? engineConfig?.path ?? "Unavailable"}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium">Last updated</p>
+                <p className="text-muted-foreground">
+                  {engineStatus?.configLastUpdated ?? engineConfig?.lastUpdated ?? "Unavailable"}
+                </p>
+              </div>
+              {engineStatus?.error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive">
+                  {engineStatus.error}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Endpoint presets
+              <Wand2 className="h-5 w-5" />
+              Engine presets
             </CardTitle>
             <CardDescription>
-              System presets are seeded from env/defaults. Custom presets can be managed here.
+              Built-in preset templates come from the engine config API and are intended as starting points for the runtime JSON editor.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <p className="text-sm text-muted-foreground">Loading presets…</p>
             ) : presets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No endpoint presets found.</p>
+              <p className="text-sm text-muted-foreground">No engine presets available.</p>
             ) : (
-              <div className="space-y-4">
-                {Object.entries(groupedPresets).map(([providerKey, providerPresets]) => (
-                  <div key={providerKey} className="space-y-2">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      {providerKey}
-                    </h3>
+              <div className="grid gap-4 lg:grid-cols-3">
+                {presets.map((preset) => (
+                  <div key={preset.id} className="rounded-lg border border-border p-4">
                     <div className="space-y-2">
-                      {providerPresets.map((preset) => (
-                        <div
-                          key={preset.id}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{preset.name}</p>
-                              {preset.isSystem && <Badge variant="outline">System</Badge>}
-                              {!preset.enabled && <Badge variant="warning">Disabled</Badge>}
-                            </div>
-                            <p className="font-mono text-xs text-muted-foreground">HTTP: {preset.httpUrl}</p>
-                            <p className="font-mono text-xs text-muted-foreground">WS: {preset.wsUrl}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditDialog(preset)}
-                              disabled={preset.isSystem}
-                              title={preset.isSystem ? "System presets are read-only" : "Edit preset"}
-                            >
-                              <Pencil className="mr-1 h-4 w-4" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => void deletePreset(preset)}
-                              disabled={preset.isSystem}
-                              title={preset.isSystem ? "System presets cannot be deleted" : "Delete preset"}
-                            >
-                              <Trash2 className="mr-1 h-4 w-4" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                      <p className="font-medium">{preset.name}</p>
+                      <p className="text-sm text-muted-foreground">{preset.description}</p>
+                      <pre className="overflow-x-auto rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+                        {JSON.stringify(preset.config, null, 2)}
+                      </pre>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Runtime config editor
+            </CardTitle>
+            <CardDescription>
+              Edit engine runtime config as JSON here. The engine persists YAML on disk, but the Core control plane edits the same config through the engine API.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <textarea
+              className="min-h-[420px] w-full rounded-md border border-input bg-background p-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring"
+              value={editorValue}
+              onChange={(event) => setEditorValue(event.target.value)}
+              spellCheck={false}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void validateConfig()} disabled={saving || !editorValue.trim()}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Validate
+              </Button>
+              <Button onClick={() => void saveConfig()} disabled={saving || !editorValue.trim()}>
+                <Save className="mr-2 h-4 w-4" />
+                Save to engine
+              </Button>
+              <Button variant="outline" onClick={() => void reloadConfig()} disabled={saving}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reload from engine
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
