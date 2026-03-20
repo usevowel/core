@@ -1,3 +1,5 @@
+import { DEFAULT_TEST_MODEL } from "./default-model";
+
 /**
  * Debug WebSocket connection - try different auth methods
  */
@@ -17,7 +19,7 @@ function testMethod1() {
   return new Promise((resolve) => {
     console.log("\n📡 Method 1: Subprotocol with openai-insecure-api-key...");
     const ws = new WebSocket(
-      `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`,
+      `${WS_URL}?model=${DEFAULT_TEST_MODEL}`,
       [`openai-insecure-api-key.${TEST_TOKEN}`]
     );
 
@@ -49,7 +51,7 @@ function testMethod2() {
   return new Promise((resolve) => {
     console.log("\n📡 Method 2: Subprotocol with just token...");
     const ws = new WebSocket(
-      `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`,
+      `${WS_URL}?model=${DEFAULT_TEST_MODEL}`,
       [TEST_TOKEN]
     );
 
@@ -81,7 +83,7 @@ function testMethod3() {
   return new Promise((resolve) => {
     console.log("\n📡 Method 3: Subprotocol with token + json...");
     const ws = new WebSocket(
-      `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`,
+      `${WS_URL}?model=${DEFAULT_TEST_MODEL}`,
       [`openai-insecure-api-key.${TEST_TOKEN}`, "json"]
     );
 
@@ -113,7 +115,7 @@ function testMethod4() {
   return new Promise((resolve) => {
     console.log("\n📡 Method 4: Token in query param...");
     const ws = new WebSocket(
-      `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905&token=${encodeURIComponent(TEST_TOKEN)}`
+      `${WS_URL}?model=${DEFAULT_TEST_MODEL}&token=${encodeURIComponent(TEST_TOKEN)}`
     );
 
     ws.onopen = () => {

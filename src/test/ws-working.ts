@@ -7,6 +7,7 @@ import { createApp } from "../db/apps";
 import { createApiKey } from "../db/api-keys";
 import { createProviderKey } from "../db/provider-keys";
 import { handleGenerateToken } from "../server/token";
+import { DEFAULT_TEST_MODEL } from "./default-model";
 
 async function main() {
   console.log("🚀 WebSocket Connection Test (via TCP)\n");
@@ -30,7 +31,7 @@ async function main() {
       config: {
         provider: "vowel-prime",
         voiceConfig: {
-          model: "moonshotai/kimi-k2-instruct-0905",
+          model: DEFAULT_TEST_MODEL,
           voice: "Ashley",
           vowelPrimeConfig: { environment: "staging" },
         },
@@ -55,7 +56,7 @@ async function main() {
           // Send WebSocket upgrade request
           const key = "dGhlIHNhbXBsZSBub25jZQ=="; // Fixed key for testing
           const request = [
-            "GET /v1/realtime?model=moonshotai/kimi-k2-instruct-0905 HTTP/1.1",
+            `GET /v1/realtime?model=${DEFAULT_TEST_MODEL} HTTP/1.1`,
             "Host: staging.prime.vowel.to",
             "Upgrade: websocket",
             "Connection: Upgrade",

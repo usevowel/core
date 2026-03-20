@@ -5,6 +5,7 @@
 import { describe, test, expect } from "bun:test";
 import { createApp } from "../db/apps";
 import { createApiKey } from "../db/api-keys";
+import { DEFAULT_TEST_MODEL } from "../test/default-model";
 
 process.env.DB_PATH ??= "./data/core.test.db";
 
@@ -145,7 +146,7 @@ describe("Vowel Core API", () => {
         const res = await postGenerateToken(
           baseTokenRequest({
             appId: bearer.appId,
-            config: { model: "moonshotai/kimi-k2-instruct-0905" },
+            config: { model: DEFAULT_TEST_MODEL },
           }),
           bearer.plaintext
         );
@@ -154,7 +155,7 @@ describe("Vowel Core API", () => {
         const json = await res.json();
         expect(json).toMatchObject({
           provider: "vowel-prime",
-          model: "moonshotai/kimi-k2-instruct-0905",
+          model: DEFAULT_TEST_MODEL,
           metadata: {
             baseUrl: "ws://localhost:8787/v1/realtime",
             audioFormat: "pcm16",
@@ -163,8 +164,7 @@ describe("Vowel Core API", () => {
         });
         expect(typeof json.tokenName).toBe("string");
         expect(json.token).toBe(json.tokenName);
-        expect(json.tokenName).toContain("vowel-prime");
-        expect(json.tokenName).toMatch(/moonshotaikimi-k2-instruct-0905/i);
+        expect(json.tokenName).toMatch(/^ek_/);
       } finally {
         restoreEnv();
       }

@@ -9,6 +9,7 @@ import { createApp } from "../db/apps";
 import { createApiKey } from "../db/api-keys";
 import { createProviderKey } from "../db/provider-keys";
 import { handleGenerateToken } from "../server/token";
+import { DEFAULT_TEST_MODEL } from "./default-model";
 
 describe("Vowel Core Full Flow E2E", () => {
   beforeAll(() => {
@@ -59,13 +60,13 @@ describe("Vowel Core Full Flow E2E", () => {
     const tokenData = await handleGenerateToken({
       appId: app.id,
       origin: "http://localhost:5173",
-      config: {
-        provider: "vowel-prime",
-        voiceConfig: {
-          model: "moonshotai/kimi-k2-instruct-0905",
-          voice: "Ashley",
-          vowelPrimeConfig: {
-            environment: "staging",
+        config: {
+          provider: "vowel-prime",
+          voiceConfig: {
+            model: DEFAULT_TEST_MODEL,
+            voice: "Ashley",
+            vowelPrimeConfig: {
+              environment: "staging",
           },
         },
       },
@@ -134,7 +135,7 @@ function testWebSocketViaTCP(wsUrl: string, token: string): Promise<boolean> {
           // Send HTTP/1.1 WebSocket upgrade request
           const wsKey = "dGhlIHNhbXBsZSBub25jZQ==";
           const request = [
-            `GET /v1/realtime?model=moonshotai/kimi-k2-instruct-0905 HTTP/1.1`,
+            `GET /v1/realtime?model=${DEFAULT_TEST_MODEL} HTTP/1.1`,
             `Host: ${url.hostname}`,
             `Upgrade: websocket`,
             `Connection: Upgrade`,

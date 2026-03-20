@@ -2,6 +2,8 @@
  * Simple token generator using fetch
  */
 
+import { DEFAULT_TEST_MODEL } from "./default-model";
+
 async function main() {
   console.log("🚀 Generating fresh token for WebSocket testing...\n");
 
@@ -64,7 +66,7 @@ async function main() {
         config: {
           provider: "vowel-prime",
           voiceConfig: {
-            model: "moonshotai/kimi-k2-instruct-0905",
+            model: DEFAULT_TEST_MODEL,
             voice: "Ashley",
             vowelPrimeConfig: { environment: "staging" },
           },

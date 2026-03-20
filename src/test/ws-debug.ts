@@ -1,3 +1,5 @@
+import { DEFAULT_TEST_MODEL } from "./default-model";
+
 /**
  * Debug WebSocket connection
  */
@@ -11,12 +13,12 @@ if (!TEST_TOKEN) {
 }
 
 console.log("🔍 WebSocket Debug Test\n");
-console.log(`URL: ${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`);
+console.log(`URL: ${WS_URL}?model=${DEFAULT_TEST_MODEL}`);
 console.log(`Token: ${TEST_TOKEN.slice(0, 50)}...\n`);
 
 // Try connecting with detailed logging
 const ws = new WebSocket(
-  `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`,
+  `${WS_URL}?model=${DEFAULT_TEST_MODEL}`,
   [`openai-insecure-api-key.${TEST_TOKEN}`]
 );
 

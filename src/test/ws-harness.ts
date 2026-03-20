@@ -1,3 +1,5 @@
+import { DEFAULT_TEST_MODEL } from "./default-model";
+
 /**
  * Simple WebSocket connection test harness
  * Tests connecting to Vowel Engine with proper token passing
@@ -22,7 +24,7 @@ if (!TEST_TOKEN) {
 console.log("Method 1: WebSocket with subprotocol...");
 
 const ws1 = new WebSocket(
-  `${WS_URL}?model=moonshotai/kimi-k2-instruct-0905`,
+  `${WS_URL}?model=${DEFAULT_TEST_MODEL}`,
   [`openai-insecure-api-key.${TEST_TOKEN}`]
 );
 
@@ -67,7 +69,7 @@ ws1.onclose = () => {
 function testMethod2() {
   console.log("Method 2: Fetch with Upgrade header...");
   
-  fetch(WS_URL + "?model=moonshotai/kimi-k2-instruct-0905", {
+  fetch(WS_URL + `?model=${DEFAULT_TEST_MODEL}`, {
     method: "GET",
     headers: {
       "Upgrade": "websocket",
