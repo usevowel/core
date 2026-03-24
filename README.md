@@ -1,8 +1,8 @@
 # Vowel Core
 
-Self-hosted token service + Web UI for the vowel platform. Ephemeral token minting for sndbrd, OpenAI Realtime, and Grok Realtime. Create apps, API keys, and generate tokens.
+Self-hosted token service + Web UI for the vowel platform. Ephemeral token minting for Vowel Engine, OpenAI Realtime, and Grok Realtime. Create apps, API keys, and generate tokens.
 
-**No auth. No billing. No Convex.** Single Docker container.
+![Vowel Core UI](assets/VowelCoreUI.png)
 
 ## Quick Start
 
@@ -28,14 +28,6 @@ bun run dev:stack
 ```
 
 Open http://localhost:3000
-
-## Docker
-
-```bash
-docker compose up --build
-```
-
-Runs Elysia (API on 3001) + vinext (UI on 3000) in one container. vinext proxies `/api/*` and `/vowel/api/*` to Elysia.
 
 ## Tests
 
@@ -69,6 +61,4 @@ bun run dev:tunnel:production # uses core.vowel.to (requires caution)
 
 See `.env.example` for required variables.
 
-## Plan
 
-See [.ai/plans/february-2026/core-self-hosted/](../../.ai/plans/february-2026/core-self-hosted/) in the platform repo.

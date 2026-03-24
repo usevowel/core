@@ -158,7 +158,7 @@ const tokenHandler = async (request: Request): Promise<Response> => {
       );
     }
 
-    const apiKey = authHeader.slice(7);
+    const apiKey = authHeader.slice(7).trim();
     const body = (await request.json()) as TokenRequestBody;
     
     const result = await handleGenerateToken(body, apiKey);

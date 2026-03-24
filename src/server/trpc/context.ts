@@ -24,7 +24,7 @@ export async function createContext({ req }: { req: Request }): Promise<Context>
     return { apiKey: null };
   }
 
-  const token = authHeader.slice(7);
+  const token = authHeader.slice(7).trim();
   const validation = await validateApiKey(token);
 
   if (!validation) {

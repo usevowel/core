@@ -11,15 +11,3 @@ services:
       DB_PATH: /app/data/core.db
     volumes:
       - ./data:/app/data
-    # Uncomment to run with sndbrd:
-    # depends_on:
-    #   - sndbrd
-
-  # sndbrd:
-  #   build: ../engines/sndbrd
-  #   ports:
-  #     - "8787:8787"
-  #   environment:
-  #     API_KEY: ${SNDBRD_API_KEY}
-  #     JWT_SECRET: ${JWT_SECRET}
-  #     GROQ_API_KEY: ${GROQ_API_KEY}
