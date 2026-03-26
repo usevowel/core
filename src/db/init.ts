@@ -3,6 +3,8 @@
  */
 
 import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { SCHEMA } from "./schema";
 
 function resolveDbPath(): string {
@@ -21,6 +23,7 @@ function resolveDbPath(): string {
 
 export function getDb(): Database {
   const dbPath = resolveDbPath();
+  mkdirSync(dirname(dbPath), { recursive: true });
   return new Database(dbPath);
 }
 
