@@ -18,7 +18,7 @@ async function main() {
     await createProviderKey({
       appId: app.id,
       provider: "vowel-prime",
-      apiKey: process.env.SNDBRD_API_KEY || "",
+      apiKey: process.env.VOWEL_ENGINE_API_KEY || "",
       vowelPrimeEnvironment: "staging",
     });
     const apiKey = await createApiKey({

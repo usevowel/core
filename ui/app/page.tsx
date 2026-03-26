@@ -32,7 +32,7 @@ export default async function HomePage() {
           <div className="badge">Self-hosted</div>
           <h1>Vowel Core</h1>
           <p>
-            Token service for sndbrd, OpenAI Realtime, and Grok Realtime.
+            Token service for Vowel Engine, OpenAI Realtime, and Grok Realtime.
             Create apps, API keys, and generate ephemeral tokens.
           </p>
         </div>

@@ -19,9 +19,9 @@ describe("Vowel Core Full Flow E2E", () => {
   });
 
   test("complete flow: app → API key → token → WebSocket connection", async () => {
-    // Skip if no sndbrd API key
-    if (!process.env.SNDBRD_API_KEY) {
-      console.log("⚠️  Skipping: SNDBRD_API_KEY not configured");
+    // Skip if no Vowel Engine API key
+    if (!process.env.VOWEL_ENGINE_API_KEY) {
+      console.log("⚠️  Skipping: VOWEL_ENGINE_API_KEY not configured");
       return;
     }
 
@@ -40,7 +40,7 @@ describe("Vowel Core Full Flow E2E", () => {
     await createProviderKey({
       appId: app.id,
       provider: "vowel-prime",
-      apiKey: process.env.SNDBRD_API_KEY,
+      apiKey: process.env.VOWEL_ENGINE_API_KEY,
       label: "Staging Environment",
       vowelPrimeEnvironment: "staging",
     });

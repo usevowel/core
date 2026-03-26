@@ -3,7 +3,7 @@ import "./globals.css";
 export const metadata = {
   title: "Vowel Core — Self-hosted Token Service",
   description:
-    "Self-hosted token service for sndbrd, OpenAI Realtime, and Grok Realtime.",
+    "Self-hosted token service for Vowel Engine, OpenAI Realtime, and Grok Realtime.",
 };
 
 export default function RootLayout({

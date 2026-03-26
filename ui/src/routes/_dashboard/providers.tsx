@@ -71,7 +71,7 @@ function ProvidersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const providerStatus = status?.providers ?? {
-    "vowel-prime": { configured: false, secretEnv: "SNDBRD_API_KEY" },
+    "vowel-prime": { configured: false, secretEnv: "VOWEL_ENGINE_API_KEY" },
     openai: { configured: false, secretEnv: "OPENAI_API_KEY" },
     grok: { configured: false, secretEnv: "XAI_API_KEY" },
   };

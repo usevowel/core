@@ -9,8 +9,8 @@ import { getEngineHealth } from "../engine-config";
 export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async () => {
   const providers = {
     "vowel-prime": {
-      configured: Boolean(process.env.SNDBRD_API_KEY),
-      secretEnv: "SNDBRD_API_KEY",
+      configured: Boolean(process.env.VOWEL_ENGINE_API_KEY),
+      secretEnv: "VOWEL_ENGINE_API_KEY",
     },
     openai: {
       configured: Boolean(process.env.OPENAI_API_KEY),
@@ -36,21 +36,21 @@ export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async 
     error?: string;
   } = {
     reachable: false,
-    url: process.env.SNDBRD_URL ?? null,
+    url: process.env.VOWEL_ENGINE_URL ?? null,
   };
 
   try {
     const health = await getEngineHealth();
     engine = {
       reachable: true,
-      url: process.env.SNDBRD_URL ?? null,
+      url: process.env.VOWEL_ENGINE_URL ?? null,
       configPath: health.configPath,
       configLastUpdated: health.configLastUpdated,
     };
   } catch (error) {
     engine = {
       reachable: false,
-      url: process.env.SNDBRD_URL ?? null,
+      url: process.env.VOWEL_ENGINE_URL ?? null,
       error: error instanceof Error ? error.message : "Engine health request failed",
     };
   }

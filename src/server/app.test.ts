@@ -33,16 +33,16 @@ describe("Vowel Core API", () => {
       expect(typeof json.providers["vowel-prime"].configured).toBe("boolean");
     });
 
-    test("reflects SNDBRD_API_KEY when set", async () => {
-      const orig = process.env.SNDBRD_API_KEY;
-      process.env.SNDBRD_API_KEY = "test-key";
+    test("reflects VOWEL_ENGINE_API_KEY when set", async () => {
+      const orig = process.env.VOWEL_ENGINE_API_KEY;
+      process.env.VOWEL_ENGINE_API_KEY = "test-key";
       try {
         const res = await app.fetch(new Request("http://localhost/api/status"));
         const json = await res.json();
         expect(json.providers["vowel-prime"].configured).toBe(true);
       } finally {
-        if (orig !== undefined) process.env.SNDBRD_API_KEY = orig;
-        else delete process.env.SNDBRD_API_KEY;
+        if (orig !== undefined) process.env.VOWEL_ENGINE_API_KEY = orig;
+        else delete process.env.VOWEL_ENGINE_API_KEY;
       }
     });
   });
@@ -135,8 +135,8 @@ describe("Vowel Core API", () => {
     test.skip("issues a vowel-prime token using default provider resolution", async () => {
       const restoreEnv = setEnv({
         CORE_DEFAULT_PROVIDER: undefined,
-        SNDBRD_API_KEY: "dev-test-sndbrd-key",
-        SNDBRD_WS_URL: "ws://localhost:8787/v1/realtime",
+        VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
+        VOWEL_ENGINE_WS_URL: "ws://localhost:8787/v1/realtime",
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
       });
@@ -174,7 +174,7 @@ describe("Vowel Core API", () => {
       const restoreEnv = setEnv({
         OPENAI_API_KEY: "dev-openai-key",
         CORE_DEFAULT_PROVIDER: "openai",
-        SNDBRD_API_KEY: undefined,
+        VOWEL_ENGINE_API_KEY: undefined,
         XAI_API_KEY: undefined,
       });
 
@@ -216,7 +216,7 @@ describe("Vowel Core API", () => {
       const restoreEnv = setEnv({
         XAI_API_KEY: "dev-grok-key",
         CORE_DEFAULT_PROVIDER: "grok",
-        SNDBRD_API_KEY: undefined,
+        VOWEL_ENGINE_API_KEY: undefined,
         OPENAI_API_KEY: undefined,
       });
 
@@ -256,7 +256,7 @@ describe("Vowel Core API", () => {
 
     test("returns 400 when selected provider credentials are missing", async () => {
       const restoreEnv = setEnv({
-        SNDBRD_API_KEY: undefined,
+        VOWEL_ENGINE_API_KEY: undefined,
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
         CORE_DEFAULT_PROVIDER: "vowel-prime",
@@ -280,7 +280,7 @@ describe("Vowel Core API", () => {
 
     test("keeps browser session config out of the vowel-prime token payload", async () => {
       const restoreEnv = setEnv({
-        SNDBRD_API_KEY: "dev-test-sndbrd-key",
+        VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
       });

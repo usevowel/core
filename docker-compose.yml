@@ -4,8 +4,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      SNDBRD_URL: http://sndbrd:8787
-      SNDBRD_API_KEY: ${SNDBRD_API_KEY}
+      VOWEL_ENGINE_URL: http://vowel-engine:8787
+      VOWEL_ENGINE_API_KEY: ${VOWEL_ENGINE_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       DB_PATH: /app/data/core.db

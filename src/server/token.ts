@@ -85,7 +85,7 @@ export class TokenRequestError extends Error {
 
 function requireProviderSecret(provider: "vowel-prime" | "openai" | "grok"): string {
   const envKeys: Record<typeof provider, string | undefined> = {
-    "vowel-prime": process.env.SNDBRD_API_KEY,
+    "vowel-prime": process.env.VOWEL_ENGINE_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     grok: process.env.XAI_API_KEY,
   };
@@ -96,7 +96,7 @@ function requireProviderSecret(provider: "vowel-prime" | "openai" | "grok"): str
       400,
       `No API key for ${provider}. Set ${
         provider === "vowel-prime"
-          ? "SNDBRD_API_KEY"
+          ? "VOWEL_ENGINE_API_KEY"
           : provider === "openai"
             ? "OPENAI_API_KEY"
             : "XAI_API_KEY"
@@ -120,15 +120,15 @@ function ensureAllowedProvider(
 }
 
 function getVowelEngineBaseUrl(): string {
-  const baseUrl = process.env.SNDBRD_URL?.trim();
+  const baseUrl = process.env.VOWEL_ENGINE_URL?.trim();
   if (!baseUrl) {
-    throw new TokenRequestError(500, "SNDBRD_URL is not configured");
+    throw new TokenRequestError(500, "VOWEL_ENGINE_URL is not configured");
   }
   return baseUrl.replace(/\/$/, "");
 }
 
 function getVowelEngineWebsocketUrl(): string {
-  const configuredWsUrl = process.env.SNDBRD_WS_URL?.trim();
+  const configuredWsUrl = process.env.VOWEL_ENGINE_WS_URL?.trim();
   if (configuredWsUrl) {
     return configuredWsUrl.replace(/\/$/, "");
   }

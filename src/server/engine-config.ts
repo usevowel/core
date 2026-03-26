@@ -20,17 +20,17 @@ export interface EngineConfigPreset {
 }
 
 function getEngineBaseUrl(): string {
-  const baseUrl = process.env.SNDBRD_URL?.trim();
+  const baseUrl = process.env.VOWEL_ENGINE_URL?.trim();
   if (!baseUrl) {
-    throw new Error("SNDBRD_URL is not configured");
+    throw new Error("VOWEL_ENGINE_URL is not configured");
   }
   return baseUrl.replace(/\/$/, "");
 }
 
 function getEngineApiKey(): string {
-  const apiKey = process.env.SNDBRD_API_KEY?.trim();
+  const apiKey = process.env.VOWEL_ENGINE_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error("SNDBRD_API_KEY is not configured");
+    throw new Error("VOWEL_ENGINE_API_KEY is not configured");
   }
   return apiKey;
 }

@@ -32,7 +32,7 @@ async function main() {
         "0": {
           appId,
           provider: "vowel-prime",
-          apiKey: process.env.SNDBRD_API_KEY,
+          apiKey: process.env.VOWEL_ENGINE_API_KEY,
           vowelPrimeEnvironment: "staging",
         }
       }),

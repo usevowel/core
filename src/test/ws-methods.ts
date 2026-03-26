@@ -160,7 +160,7 @@ async function main() {
     console.log("   - Token expired (5 min lifetime)");
     console.log("   - Network connectivity issues");
     console.log("   - Vowel Engine staging is down");
-    console.log("   - The subprotocol format doesn't match what sndbrd expects");
+    console.log("   - The subprotocol format doesn't match what Vowel Engine expects");
     console.log("\n   The browser you tested with may use a different WebSocket implementation");
     console.log("   or the token format in the browser was slightly different.");
   }

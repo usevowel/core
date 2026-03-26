@@ -13,7 +13,7 @@ bun install
 ```bash
 # Tests use in-memory SQLite by default, but you can configure:
 export TEST_API_URL=http://localhost:3000  # If server is running
-export SNDBRD_API_KEY=your-key  # For full WebSocket tests
+export VOWEL_ENGINE_API_KEY=your-key  # For full WebSocket tests
 ```
 
 ### Running Tests
@@ -55,11 +55,11 @@ bun test --coverage
 
 ### Expected Results
 
-**If SNDBRD_API_KEY is configured:**
+**If VOWEL_ENGINE_API_KEY is configured:**
 - All tests should pass including WebSocket connection
 - Full end-to-end flow verified
 
-**If SNDBRD_API_KEY is not configured:**
+**If VOWEL_ENGINE_API_KEY is not configured:**
 - tRPC tests will pass
 - Token generation tests will be skipped
 - WebSocket connection test will be skipped
@@ -71,7 +71,7 @@ bun test --coverage
 - Verify the database was initialized
 
 **Token generation fails:**
-- Check SNDBRD_API_KEY is valid
+- Check VOWEL_ENGINE_API_KEY is valid
 - Verify network connectivity to staging.prime.vowel.to
 - Check that provider key was created with correct environment
 
