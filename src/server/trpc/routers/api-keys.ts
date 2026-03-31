@@ -13,11 +13,11 @@ import {
   updateApiKey,
   revokeApiKey,
   type ApiKeyScope,
+  type ApiKeyProvider,
 } from "../../../db/api-keys";
-import type { EndpointProvider } from "../../../db/endpoint-presets";
 
 const scopeSchema = z.enum(["mint_ephemeral", "direct_ws"]);
-const providerSchema = z.enum(["vowel-prime", "openai", "grok"]);
+const providerSchema = z.enum(["vowel-core", "vowel-prime", "openai", "grok"]);
 
 export const apiKeysRouter = router({
   list: publicProcedure
@@ -33,8 +33,6 @@ export const apiKeysRouter = router({
         scopes: z.array(scopeSchema),
         label: z.string().optional(),
         allowedProviders: z.array(providerSchema).optional(),
-        allowedEndpointPresets: z.array(z.string()).optional(),
-        defaultEndpointPreset: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -42,9 +40,7 @@ export const apiKeysRouter = router({
         appId: input.appId,
         scopes: input.scopes as ApiKeyScope[],
         label: input.label,
-        allowedProviders: input.allowedProviders as EndpointProvider[] | undefined,
-        allowedEndpointPresets: input.allowedEndpointPresets,
-        defaultEndpointPreset: input.defaultEndpointPreset,
+        allowedProviders: input.allowedProviders as ApiKeyProvider[] | undefined,
       });
     }),
 
@@ -66,17 +62,13 @@ export const apiKeysRouter = router({
         scopes: z.array(scopeSchema).optional(),
         label: z.string().optional(),
         allowedProviders: z.array(providerSchema).optional(),
-        allowedEndpointPresets: z.array(z.string()).optional(),
-        defaultEndpointPreset: z.string().nullable().optional(),
       })
     )
     .mutation(({ input }) => {
       const updated = updateApiKey(input.id, input.appId, {
         scopes: input.scopes as ApiKeyScope[] | undefined,
         label: input.label,
-        allowedProviders: input.allowedProviders as EndpointProvider[] | undefined,
-        allowedEndpointPresets: input.allowedEndpointPresets,
-        defaultEndpointPreset: input.defaultEndpointPreset,
+        allowedProviders: input.allowedProviders as ApiKeyProvider[] | undefined,
       });
       if (!updated) {
         throw new Error("API key not found");

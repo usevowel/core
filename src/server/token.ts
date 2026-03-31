@@ -3,13 +3,14 @@
  * Uses provider secrets from environment variables and publishable-key policy checks.
  */
 
+import { getApp } from "../db/apps";
 import { validateApiKey } from "../db/api-keys";
 
 export interface TokenRequestBody {
   appId?: string;
   origin: string;
   config?: {
-    provider?: "vowel-prime" | "openai" | "grok";
+    provider?: "vowel-core" | "vowel-prime" | "openai" | "grok";
     routes?: Array<{
       path: string;
       description: string;
@@ -46,6 +47,11 @@ export interface TokenRequestBody {
       };
       initialGreetingPrompt?: string;
       turnDetectionPreset?: "aggressive" | "balanced" | "conservative";
+      vowelPrimeConfig?: {
+        endpointPreset?: string;
+        httpUrl?: string;
+        wsUrl?: string;
+      };
       turnDetection?: {
         mode: "server_vad" | "client_vad" | "disabled";
         clientVAD?: {
@@ -67,7 +73,7 @@ export interface TokenResponse {
   tokenName: string;
   token?: string;
   model: string;
-  provider: "vowel-prime" | "openai" | "grok";
+  provider: "vowel-core" | "vowel-prime" | "openai" | "grok";
   expiresAt: string;
   metadata?: Record<string, unknown>;
   systemInstructions?: string;
@@ -83,8 +89,9 @@ export class TokenRequestError extends Error {
   }
 }
 
-function requireProviderSecret(provider: "vowel-prime" | "openai" | "grok"): string {
+function requireProviderSecret(provider: "vowel-core" | "vowel-prime" | "openai" | "grok"): string {
   const envKeys: Record<typeof provider, string | undefined> = {
+    "vowel-core": process.env.VOWEL_ENGINE_API_KEY,
     "vowel-prime": process.env.VOWEL_ENGINE_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     grok: process.env.XAI_API_KEY,
@@ -95,7 +102,7 @@ function requireProviderSecret(provider: "vowel-prime" | "openai" | "grok"): str
     throw new TokenRequestError(
       400,
       `No API key for ${provider}. Set ${
-        provider === "vowel-prime"
+        provider === "vowel-core" || provider === "vowel-prime"
           ? "VOWEL_ENGINE_API_KEY"
           : provider === "openai"
             ? "OPENAI_API_KEY"
@@ -108,7 +115,7 @@ function requireProviderSecret(provider: "vowel-prime" | "openai" | "grok"): str
 }
 
 function ensureAllowedProvider(
-  requestedProvider: "vowel-prime" | "openai" | "grok",
+  requestedProvider: "vowel-core" | "vowel-prime" | "openai" | "grok",
   allowedProviders: string[]
 ): void {
   if (!allowedProviders.includes(requestedProvider)) {
@@ -204,21 +211,39 @@ export async function handleGenerateToken(
     );
   }
 
-  const provider = body.config?.provider ?? "vowel-prime";
+  const app = getApp(appId);
+  if (!app) {
+    throw new TokenRequestError(404, "App not found");
+  }
+
+  const appRuntimeConfig = app.runtimeConfig as TokenRequestBody["config"] | null;
+  const provider = appRuntimeConfig?.provider ?? body.config?.provider ?? "vowel-prime";
+  const effectiveConfig: TokenRequestBody["config"] = {
+    ...(body.config ?? {}),
+    ...(appRuntimeConfig ?? {}),
+    provider,
+    voiceConfig:
+      provider === "vowel-core"
+        ? appRuntimeConfig?.voiceConfig
+        : appRuntimeConfig?.voiceConfig ?? body.config?.voiceConfig,
+  };
+
   ensureAllowedProvider(provider, validation.allowedProviders);
 
-  const voiceConfig = body.config?.voiceConfig;
-  const systemInstructions = buildSystemInstructions(body.config, appId);
+  const voiceConfig = effectiveConfig?.voiceConfig;
+  const systemInstructions = buildSystemInstructions(effectiveConfig, appId);
   const model =
     voiceConfig?.model ??
-    (provider === "vowel-prime"
+    (provider === "vowel-prime" || provider === "vowel-core"
       ? "openai/gpt-oss-20b"
       : "gpt-realtime");
-  const voice = voiceConfig?.voice ?? (provider === "vowel-prime" ? "Ashley" : "alloy");
+  const voice =
+    voiceConfig?.voice ??
+    (provider === "vowel-prime" || provider === "vowel-core" ? "Ashley" : "alloy");
 
-  if (provider === "vowel-prime") {
+  if (provider === "vowel-prime" || provider === "vowel-core") {
     const endpoint = `${getVowelEngineBaseUrl()}/v1/realtime/sessions`;
-    const providerApiKey = requireProviderSecret("vowel-prime");
+    const providerApiKey = requireProviderSecret(provider);
     const {
       model: _model,
       voice: _voice,
@@ -275,7 +300,7 @@ export async function handleGenerateToken(
       tokenName: tokenValue,
       token: tokenValue,
       model,
-      provider: "vowel-prime",
+      provider,
       expiresAt: new Date(expiresAt * 1000).toISOString(),
       metadata: {
         baseUrl: getVowelEngineWebsocketUrl(),

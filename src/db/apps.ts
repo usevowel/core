@@ -11,6 +11,7 @@ export interface AppRow {
   name: string;
   description: string | null;
   default_provider: string | null;
+  runtime_config: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -19,12 +20,14 @@ export interface CreateAppInput {
   name: string;
   description?: string;
   defaultProvider?: string;
+  runtimeConfig?: Record<string, unknown> | null;
 }
 
 export interface UpdateAppInput {
   name?: string;
   description?: string;
   defaultProvider?: string;
+  runtimeConfig?: Record<string, unknown> | null;
 }
 
 export interface App {
@@ -32,8 +35,22 @@ export interface App {
   name: string;
   description: string | null;
   defaultProvider: string | null;
+  runtimeConfig: Record<string, unknown> | null;
   createdAt: number;
   updatedAt: number;
+}
+
+function parseJsonObject(value: string | null): Record<string, unknown> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 function rowToApp(row: AppRow): App {
@@ -42,6 +59,7 @@ function rowToApp(row: AppRow): App {
     name: row.name,
     description: row.description,
     defaultProvider: row.default_provider,
+    runtimeConfig: parseJsonObject(row.runtime_config),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -56,13 +74,14 @@ export function createApp(input: CreateAppInput): App {
 
   const db = getDb();
   db.run(
-    `INSERT INTO apps (id, name, description, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO apps (id, name, description, default_provider, runtime_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       input.name,
       input.description ?? null,
       input.defaultProvider ?? null,
+      input.runtimeConfig ? JSON.stringify(input.runtimeConfig) : null,
       now,
       now,
     ]
@@ -74,6 +93,7 @@ export function createApp(input: CreateAppInput): App {
     name: input.name,
     description: input.description ?? null,
     defaultProvider: input.defaultProvider ?? null,
+    runtimeConfig: input.runtimeConfig ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -87,6 +107,7 @@ export function ensureApp(input: {
   name: string;
   description?: string;
   defaultProvider?: string;
+  runtimeConfig?: Record<string, unknown> | null;
 }): App {
   const existing = getApp(input.id);
   if (existing) {
@@ -96,13 +117,14 @@ export function ensureApp(input: {
   const now = Date.now();
   const db = getDb();
   db.run(
-    `INSERT INTO apps (id, name, description, default_provider, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO apps (id, name, description, default_provider, runtime_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       input.id,
       input.name,
       input.description ?? null,
       input.defaultProvider ?? null,
+      input.runtimeConfig ? JSON.stringify(input.runtimeConfig) : null,
       now,
       now,
     ]
@@ -114,6 +136,7 @@ export function ensureApp(input: {
     name: input.name,
     description: input.description ?? null,
     defaultProvider: input.defaultProvider ?? null,
+    runtimeConfig: input.runtimeConfig ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -126,8 +149,8 @@ export function listApps(): App[] {
   const db = getDb();
   const rows = db
     .query(
-      `SELECT id, name, description, default_provider, created_at, updated_at
-       FROM apps ORDER BY created_at DESC`
+      `SELECT id, name, description, default_provider, runtime_config, created_at, updated_at
+        FROM apps ORDER BY created_at DESC`
     )
     .all() as AppRow[];
   db.close();
@@ -142,8 +165,8 @@ export function getApp(id: string): App | null {
   const db = getDb();
   const row = db
     .query(
-      `SELECT id, name, description, default_provider, created_at, updated_at
-       FROM apps WHERE id = ?`
+      `SELECT id, name, description, default_provider, runtime_config, created_at, updated_at
+        FROM apps WHERE id = ?`
     )
     .get(id) as AppRow | undefined;
   db.close();
@@ -162,13 +185,14 @@ export function updateApp(id: string, input: UpdateAppInput): App | null {
   const name = input.name ?? existing.name;
   const description = input.description ?? existing.description;
   const defaultProvider = input.defaultProvider ?? existing.defaultProvider;
+  const runtimeConfig = input.runtimeConfig ?? existing.runtimeConfig;
 
   const db = getDb();
   db.run(
     `UPDATE apps 
-     SET name = ?, description = ?, default_provider = ?, updated_at = ?
-     WHERE id = ?`,
-    [name, description, defaultProvider, now, id]
+      SET name = ?, description = ?, default_provider = ?, runtime_config = ?, updated_at = ?
+      WHERE id = ?`,
+    [name, description, defaultProvider, runtimeConfig ? JSON.stringify(runtimeConfig) : null, now, id]
   );
   db.close();
 
@@ -177,6 +201,7 @@ export function updateApp(id: string, input: UpdateAppInput): App | null {
     name,
     description,
     defaultProvider,
+    runtimeConfig,
     updatedAt: now,
   };
 }

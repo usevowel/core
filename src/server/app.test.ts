@@ -257,6 +257,7 @@ describe("Vowel Core API", () => {
     test("returns 400 when selected provider credentials are missing", async () => {
       const restoreEnv = setEnv({
         VOWEL_ENGINE_API_KEY: undefined,
+        VOWEL_ENGINE_URL: "https://engine.local",
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
         CORE_DEFAULT_PROVIDER: "vowel-prime",
@@ -281,6 +282,7 @@ describe("Vowel Core API", () => {
     test("keeps browser session config out of the vowel-prime token payload", async () => {
       const restoreEnv = setEnv({
         VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
+        VOWEL_ENGINE_URL: "https://engine.local",
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
       });
@@ -289,7 +291,7 @@ describe("Vowel Core API", () => {
       const originalFetch = globalThis.fetch;
       let capturedRequestBody: Record<string, unknown> | undefined;
 
-      globalThis.fetch = (async (_input, init) => {
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
         capturedRequestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
         return new Response(
           JSON.stringify({
@@ -303,7 +305,7 @@ describe("Vowel Core API", () => {
             headers: { "Content-Type": "application/json" },
           }
         );
-      }) as typeof fetch;
+      }) as unknown as typeof fetch;
 
       try {
         const res = await postGenerateToken(
@@ -400,6 +402,227 @@ describe("Vowel Core API", () => {
       expect(allowedMethods).toBe("POST");
       expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
     });
+
+    test("prefers app-owned runtime config over request config", async () => {
+      const restoreEnv = setEnv({
+        VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
+        VOWEL_ENGINE_URL: "https://engine.local",
+        OPENAI_API_KEY: undefined,
+        XAI_API_KEY: undefined,
+      });
+
+      const appRecord = createApp({
+        name: "Runtime config app",
+        runtimeConfig: {
+          provider: "vowel-prime",
+          voiceConfig: {
+            model: "runtime-model",
+            voice: "runtime-voice",
+          },
+        },
+      });
+      const key = await createApiKey({
+        appId: appRecord.id,
+        scopes: ["mint_ephemeral"],
+        allowedProviders: ["vowel-prime"],
+      });
+
+      const originalFetch = globalThis.fetch;
+      let capturedRequestBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedRequestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            client_secret: {
+              value: "runtime-config-secret",
+              expires_at: Math.floor(Date.now() / 1000) + 300,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        const res = await app.fetch(
+          new Request("http://localhost/vowel/api/generateToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${key.plaintext}`,
+            },
+            body: JSON.stringify({
+              appId: appRecord.id,
+              origin: "http://localhost",
+              config: {
+                provider: "openai",
+                voiceConfig: {
+                  model: "request-model",
+                  voice: "request-voice",
+                },
+              },
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        expect(capturedRequestBody).toMatchObject({
+          model: "runtime-model",
+          voice: "runtime-voice",
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        restoreEnv();
+      }
+    });
+
+    test("issues self-hosted tokens with provider vowel-core", async () => {
+      const restoreEnv = setEnv({
+        VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
+        VOWEL_ENGINE_URL: "https://engine.local",
+        OPENAI_API_KEY: undefined,
+        XAI_API_KEY: undefined,
+      });
+
+      const appRecord = createApp({
+        name: "Vowel core app",
+        runtimeConfig: {
+          provider: "vowel-core",
+          voiceConfig: {
+            model: "core-model",
+            voice: "core-voice",
+          },
+        },
+      });
+      const key = await createApiKey({
+        appId: appRecord.id,
+        scopes: ["mint_ephemeral"],
+        allowedProviders: ["vowel-core"],
+      });
+
+      const originalFetch = globalThis.fetch;
+      let capturedRequestBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedRequestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            client_secret: {
+              value: "test-vowel-core-secret",
+              expires_at: Math.floor(Date.now() / 1000) + 300,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        const res = await app.fetch(
+          new Request("http://localhost/vowel/api/generateToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${key.plaintext}`,
+            },
+            body: JSON.stringify({
+              appId: appRecord.id,
+              origin: "http://localhost",
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        expect(capturedRequestBody).toMatchObject({
+          model: "core-model",
+          voice: "core-voice",
+        });
+
+        const json = await res.json();
+        expect(json).toMatchObject({
+          provider: "vowel-core",
+          tokenName: "test-vowel-core-secret",
+          model: "core-model",
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        restoreEnv();
+      }
+    });
+
+    test("ignores request voiceConfig for provider vowel-core", async () => {
+      const restoreEnv = setEnv({
+        VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
+        VOWEL_ENGINE_URL: "https://engine.local",
+        OPENAI_API_KEY: undefined,
+        XAI_API_KEY: undefined,
+      });
+
+      const appRecord = createApp({
+        name: "Vowel core defaults app",
+      });
+      const key = await createApiKey({
+        appId: appRecord.id,
+        scopes: ["mint_ephemeral"],
+        allowedProviders: ["vowel-core"],
+      });
+
+      const originalFetch = globalThis.fetch;
+      let capturedRequestBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedRequestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            client_secret: {
+              value: "test-vowel-core-default-secret",
+              expires_at: Math.floor(Date.now() / 1000) + 300,
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        const res = await app.fetch(
+          new Request("http://localhost/vowel/api/generateToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${key.plaintext}`,
+            },
+            body: JSON.stringify({
+              appId: appRecord.id,
+              origin: "http://localhost",
+              config: {
+                provider: "vowel-core",
+                voiceConfig: {
+                  model: "request-model",
+                  voice: "request-voice",
+                },
+                routes: [{ path: "/products", description: "Products" }],
+              },
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        expect(capturedRequestBody).toMatchObject({
+          model: "openai/gpt-oss-20b",
+          voice: "Ashley",
+        });
+        expect(capturedRequestBody?.model).not.toBe("request-model");
+        expect(capturedRequestBody?.voice).not.toBe("request-voice");
+      } finally {
+        globalThis.fetch = originalFetch;
+        restoreEnv();
+      }
+    });
   });
 
   describe("API key policy + preset management", () => {
@@ -422,8 +645,6 @@ describe("Vowel Core API", () => {
             label: "Policy key",
             scopes: ["mint_ephemeral"],
             allowedProviders: ["vowel-prime"],
-            allowedEndpointPresets: ["staging"],
-            defaultEndpointPreset: "staging",
           }),
         })
       );
@@ -470,58 +691,6 @@ describe("Vowel Core API", () => {
       );
       expect(tokenRes.status).toBe(401);
     });
-
-    test("supports custom endpoint preset CRUD and protects system presets", async () => {
-      const createRes = await app.fetch(
-        new Request("http://localhost/api/endpoint-presets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "custom-local",
-            provider: "vowel-prime",
-            httpUrl: "https://example.local",
-            wsUrl: "wss://example.local/v1/realtime",
-          }),
-        })
-      );
-      expect(createRes.status).toBe(200);
-      const created = await createRes.json();
-      expect(created.name).toBe("custom-local");
-
-      const patchRes = await app.fetch(
-        new Request(`http://localhost/api/endpoint-presets/${created.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "custom-local-2",
-            httpUrl: "https://example2.local",
-            wsUrl: "wss://example2.local/v1/realtime",
-          }),
-        })
-      );
-      expect(patchRes.status).toBe(200);
-      const patched = await patchRes.json();
-      expect(patched.name).toBe("custom-local-2");
-
-      const listRes = await app.fetch(new Request("http://localhost/api/endpoint-presets"));
-      const list = await listRes.json();
-      const systemPreset = list.find((preset: any) => preset.isSystem === true);
-      expect(systemPreset).toBeTruthy();
-
-      const systemDeleteRes = await app.fetch(
-        new Request(`http://localhost/api/endpoint-presets/${systemPreset.id}`, {
-          method: "DELETE",
-        })
-      );
-      expect(systemDeleteRes.status).toBe(400);
-
-      const deleteRes = await app.fetch(
-        new Request(`http://localhost/api/endpoint-presets/${created.id}`, {
-          method: "DELETE",
-        })
-      );
-      expect(deleteRes.status).toBe(200);
-    });
   });
 
   describe("Token policy enforcement", () => {
@@ -533,7 +702,6 @@ describe("Vowel Core API", () => {
         appId: appRecord.id,
         scopes: ["mint_ephemeral"],
         allowedProviders: ["vowel-prime"],
-        allowedEndpointPresets: ["staging"],
       });
 
       const res = await app.fetch(
@@ -581,7 +749,7 @@ describe("Vowel Core API", () => {
             status: 200,
             headers: { "Content-Type": "application/json" },
           }
-        )) as typeof fetch;
+        )) as unknown as typeof fetch;
 
       try {
         const res = await app.fetch(
@@ -616,79 +784,5 @@ describe("Vowel Core API", () => {
       }
     });
 
-    test("returns 403 when endpoint preset is not allowed by publishable key policy", async () => {
-      const appRecord = createApp({
-        name: "Preset policy app",
-      });
-      const key = await createApiKey({
-        appId: appRecord.id,
-        scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-prime"],
-        allowedEndpointPresets: ["staging"],
-      });
-
-      const res = await app.fetch(
-        new Request("http://localhost/vowel/api/generateToken", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key.plaintext}`,
-          },
-          body: JSON.stringify({
-            appId: appRecord.id,
-            origin: "http://localhost",
-            config: {
-              provider: "vowel-prime",
-              voiceConfig: {
-                vowelPrimeConfig: {
-                  endpointPreset: "dev",
-                },
-              },
-            },
-          }),
-        })
-      );
-      expect(res.status).toBe(403);
-      const json = await res.json();
-      expect(json.message).toContain("not allowed");
-    });
-
-    test("returns 400 when endpoint preset does not exist", async () => {
-      const appRecord = createApp({
-        name: "Unknown preset app",
-      });
-      const key = await createApiKey({
-        appId: appRecord.id,
-        scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-prime"],
-        allowedEndpointPresets: ["not-real-preset"],
-        defaultEndpointPreset: "not-real-preset",
-      });
-
-      const res = await app.fetch(
-        new Request("http://localhost/vowel/api/generateToken", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key.plaintext}`,
-          },
-          body: JSON.stringify({
-            appId: appRecord.id,
-            origin: "http://localhost",
-            config: {
-              provider: "vowel-prime",
-              voiceConfig: {
-                vowelPrimeConfig: {
-                  endpointPreset: "not-real-preset",
-                },
-              },
-            },
-          }),
-        })
-      );
-      expect(res.status).toBe(400);
-      const json = await res.json();
-      expect(json.message).toContain("Unknown endpoint preset");
-    });
   });
 });

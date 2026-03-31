@@ -12,18 +12,19 @@ import {
   revokeApiKey,
   updateApiKey,
   type ApiKeyScope,
+  type ApiKeyProvider,
 } from "../../db/api-keys";
-import type { EndpointProvider } from "../../db/endpoint-presets";
 
 const VALID_SCOPES: ApiKeyScope[] = ["mint_ephemeral", "direct_ws"];
-const VALID_PROVIDERS: EndpointProvider[] = ["vowel-prime", "openai", "grok"];
+const VALID_PROVIDERS: ApiKeyProvider[] = ["vowel-core", "vowel-prime", "openai", "grok"];
 
 export const apiKeysRoutes = new Elysia({ prefix: "/api" })
   .get("/apps/:appId/api-keys", async ({ params }) => {
     return await listApiKeys(params.appId);
   })
   .post("/apps/:appId/api-keys", async ({ params, body }) => {
-    const scopes = Array.isArray(body.scopes) ? body.scopes : ["mint_ephemeral"];
+    const payload = body as Record<string, unknown>;
+    const scopes = Array.isArray(payload.scopes) ? payload.scopes : ["mint_ephemeral"];
     const parsedScopes = scopes.filter((scope): scope is ApiKeyScope =>
       VALID_SCOPES.includes(scope)
     );
@@ -34,23 +35,17 @@ export const apiKeysRoutes = new Elysia({ prefix: "/api" })
       );
     }
 
-    const allowedProviders = Array.isArray(body.allowedProviders)
-      ? body.allowedProviders.filter((provider): provider is EndpointProvider =>
+    const allowedProviders = Array.isArray(payload.allowedProviders)
+      ? payload.allowedProviders.filter((provider): provider is ApiKeyProvider =>
           VALID_PROVIDERS.includes(provider)
         )
-      : undefined;
-
-    const allowedEndpointPresets = Array.isArray(body.allowedEndpointPresets)
-      ? body.allowedEndpointPresets
       : undefined;
 
     const key = await createApiKey({
       appId: params.appId,
       scopes: parsedScopes,
-      label: body.label,
+      label: typeof payload.label === "string" ? payload.label : undefined,
       allowedProviders,
-      allowedEndpointPresets,
-      defaultEndpointPreset: body.defaultEndpointPreset,
     });
 
     return key;
@@ -66,35 +61,29 @@ export const apiKeysRoutes = new Elysia({ prefix: "/api" })
     return { plaintext };
   })
   .patch("/apps/:appId/api-keys/:id", ({ params, body }) => {
-    const scopes = Array.isArray(body.scopes)
-      ? body.scopes.filter((scope): scope is ApiKeyScope =>
+    const payload = body as Record<string, unknown>;
+    const scopes = Array.isArray(payload.scopes)
+      ? payload.scopes.filter((scope): scope is ApiKeyScope =>
           VALID_SCOPES.includes(scope)
         )
       : undefined;
-    if (Array.isArray(body.scopes) && scopes && scopes.length === 0) {
+    if (Array.isArray(payload.scopes) && scopes && scopes.length === 0) {
       return new Response(
         JSON.stringify({ message: "Invalid scopes payload" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const allowedProviders = Array.isArray(body.allowedProviders)
-      ? body.allowedProviders.filter((provider): provider is EndpointProvider =>
+    const allowedProviders = Array.isArray(payload.allowedProviders)
+      ? payload.allowedProviders.filter((provider): provider is ApiKeyProvider =>
           VALID_PROVIDERS.includes(provider)
         )
       : undefined;
 
     const updated = updateApiKey(params.id, params.appId, {
       scopes,
-      label: body.label,
+      label: typeof payload.label === "string" ? payload.label : undefined,
       allowedProviders,
-      allowedEndpointPresets: Array.isArray(body.allowedEndpointPresets)
-        ? body.allowedEndpointPresets
-        : undefined,
-      defaultEndpointPreset:
-        body.defaultEndpointPreset === null || typeof body.defaultEndpointPreset === "string"
-          ? body.defaultEndpointPreset
-          : undefined,
     });
     if (!updated) {
       return new Response(

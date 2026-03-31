@@ -21,7 +21,6 @@ import { bootstrapCoreDataFromEnv } from "../db/bootstrap";
 import { statusRoutes } from "./routes/status";
 import { appsRoutes } from "./routes/apps";
 import { apiKeysRoutes } from "./routes/api-keys";
-import { endpointPresetRoutes } from "./routes/endpoint-presets";
 import { engineConfigRoutes } from "./routes/engine-config";
 
 /** API port when running alongside vinext (Docker). */
@@ -214,7 +213,6 @@ let app = new Elysia()
   .use(engineConfigRoutes)
   .use(appsRoutes)
   .use(apiKeysRoutes)
-  .use(endpointPresetRoutes)
   .get("/trpc/*", ({ request }) => trpcHandler(request))
   .post("/trpc/*", ({ request }) => trpcHandler(request))
   .all("/trpc/*", ({ request }) => trpcHandler(request));

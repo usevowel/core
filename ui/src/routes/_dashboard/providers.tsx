@@ -9,7 +9,6 @@ import {
   Save,
   Settings,
   ShieldCheck,
-  Wand2,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -43,13 +42,6 @@ interface EngineConfigResponse {
   config: Record<string, unknown>;
 }
 
-interface EnginePreset {
-  id: string;
-  name: string;
-  description: string;
-  config: Record<string, unknown>;
-}
-
 const PROVIDER_OPTIONS = [
   { value: "vowel-prime", label: "Vowel Engine", icon: Bot },
   { value: "openai", label: "OpenAI Realtime", icon: Cpu },
@@ -63,7 +55,6 @@ export const Route = createFileRoute("/_dashboard/providers")({
 function ProvidersPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [engineConfig, setEngineConfig] = useState<EngineConfigResponse | null>(null);
-  const [presets, setPresets] = useState<EnginePreset[]>([]);
   const [editorValue, setEditorValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,10 +77,9 @@ function ProvidersPage() {
     setMessage(null);
 
     try {
-      const [statusRes, configRes, presetsRes] = await Promise.all([
+      const [statusRes, configRes] = await Promise.all([
         fetch("/api/status"),
         fetch("/api/engine/config"),
-        fetch("/api/engine/presets"),
       ]);
 
       if (!statusRes.ok) {
@@ -107,17 +97,10 @@ function ProvidersPage() {
       const configData = (await configRes.json()) as EngineConfigResponse;
       setEngineConfig(configData);
       setEditorValue(JSON.stringify(configData.config, null, 2));
-
-      if (presetsRes.ok) {
-        setPresets((await presetsRes.json()) as EnginePreset[]);
-      } else {
-        setPresets([]);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load provider settings");
       setStatus(null);
       setEngineConfig(null);
-      setPresets([]);
       setEditorValue("");
     } finally {
       setLoading(false);
@@ -229,7 +212,7 @@ function ProvidersPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Engine Config</h1>
             <p className="mt-1 text-muted-foreground">
-              Core acts as a client of the self-hosted engine config API. The engine persists the canonical YAML on its Docker volume.
+              Manage provider secrets and the paired engine runtime config from your self-hosted Core instance.
             </p>
           </div>
           <Button variant="outline" onClick={() => void refresh()} disabled={loading || saving}>
@@ -258,7 +241,7 @@ function ProvidersPage() {
                 Provider secret status
               </CardTitle>
               <CardDescription>
-                Provider secrets still come from environment variables. The engine runtime config is edited separately below.
+                Provider API keys are read from engine environment variables at startup.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -338,44 +321,11 @@ function ProvidersPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5" />
-              Engine presets
-            </CardTitle>
-            <CardDescription>
-              Built-in preset templates come from the engine config API and are intended as starting points for the runtime JSON editor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading presets…</p>
-            ) : presets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No engine presets available.</p>
-            ) : (
-              <div className="grid gap-4 lg:grid-cols-3">
-                {presets.map((preset) => (
-                  <div key={preset.id} className="rounded-lg border border-border p-4">
-                    <div className="space-y-2">
-                      <p className="font-medium">{preset.name}</p>
-                      <p className="text-sm text-muted-foreground">{preset.description}</p>
-                      <pre className="overflow-x-auto rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-                        {JSON.stringify(preset.config, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
               Runtime config editor
             </CardTitle>
             <CardDescription>
-              Edit engine runtime config as JSON here. The engine persists YAML on disk, but the Core control plane edits the same config through the engine API.
+              Edit the engine runtime config as JSON. Changes are persisted to the engine YAML on disk via its config API.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

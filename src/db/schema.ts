@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS apps (
   name TEXT NOT NULL,
   description TEXT,
   default_provider TEXT,
+  runtime_config TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -22,8 +23,6 @@ CREATE TABLE IF NOT EXISTS api_keys (
   scopes TEXT NOT NULL,
   label TEXT,
   allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]',
-  allowed_endpoint_presets TEXT NOT NULL DEFAULT '["staging"]',
-  default_endpoint_preset TEXT,
   revoked_at INTEGER,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (app_id) REFERENCES apps(id)
@@ -48,21 +47,4 @@ CREATE TABLE IF NOT EXISTS provider_keys (
 CREATE INDEX IF NOT EXISTS idx_provider_keys_app_id ON provider_keys(app_id);
 CREATE INDEX IF NOT EXISTS idx_provider_keys_provider ON provider_keys(provider);
 
-CREATE TABLE IF NOT EXISTS endpoint_presets (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  provider TEXT NOT NULL,
-  http_url TEXT NOT NULL,
-  ws_url TEXT NOT NULL,
-  is_system INTEGER NOT NULL DEFAULT 0,
-  enabled INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_endpoint_presets_name_provider
-  ON endpoint_presets(name, provider);
-
-CREATE INDEX IF NOT EXISTS idx_endpoint_presets_provider
-  ON endpoint_presets(provider);
 `;

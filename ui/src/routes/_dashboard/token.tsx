@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_dashboard/token")({
 });
 
 function TokenPage() {
-  const [provider, setProvider] = useState<"vowel-prime" | "openai" | "grok">("vowel-prime");
   const [apiKey, setApiKey] = useState("");
   const [appId, setAppId] = useState("");
 
@@ -64,9 +63,6 @@ function TokenPage() {
       const payload: Record<string, unknown> = {
         appId: appId || undefined,
         origin: window.location.origin,
-        config: {
-          provider,
-        },
       };
 
       const res = await fetch("/vowel/api/generateToken", {
@@ -96,7 +92,7 @@ function TokenPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Generate token</h1>
           <p className="mt-1 text-muted-foreground">
-            Test minting with a publishable `vkey_*` against the configured self-hosted engine.
+            Mint an ephemeral token against the paired self-hosted engine. Core owns provider routing — no policy selection needed.
           </p>
         </div>
 
@@ -107,7 +103,7 @@ function TokenPage() {
               Token generator
             </CardTitle>
             <CardDescription>
-              Uses `Authorization: Bearer vkey_*` and validates provider policy before minting.
+              Uses `Authorization: Bearer vkey_*` to authenticate. Core routes to the paired engine automatically.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -139,20 +135,6 @@ function TokenPage() {
                   </SelectContent>
                 </Select>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={provider} onValueChange={(value) => setProvider(value as typeof provider)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vowel-prime">Vowel Engine</SelectItem>
-                  <SelectItem value="openai">OpenAI Realtime</SelectItem>
-                  <SelectItem value="grok">Grok Realtime</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <Button onClick={handleGenerate} disabled={loading || !apiKey.trim()} className="w-full">

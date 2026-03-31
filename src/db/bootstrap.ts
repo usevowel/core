@@ -7,10 +7,8 @@ import {
   ensureApiKeyFromPlaintext,
   type ApiKeyScope,
 } from "./api-keys";
-import {
-  seedSystemEndpointPresets,
-  type EndpointProvider,
-} from "./endpoint-presets";
+
+type EndpointProvider = "vowel-core" | "vowel-prime" | "openai" | "grok";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -33,14 +31,12 @@ function parseProviders(value: string | undefined): EndpointProvider[] {
   const values = parseList(value);
   const providers = values.filter(
     (provider): provider is EndpointProvider =>
-      provider === "vowel-prime" || provider === "openai" || provider === "grok"
+      provider === "vowel-core" || provider === "vowel-prime" || provider === "openai" || provider === "grok"
   );
   return providers.length > 0 ? providers : ["vowel-prime"];
 }
 
 export async function bootstrapCoreDataFromEnv(): Promise<void> {
-  seedSystemEndpointPresets();
-
   const publishableKey = process.env.CORE_BOOTSTRAP_PUBLISHABLE_KEY?.trim();
   if (!publishableKey) {
     return;

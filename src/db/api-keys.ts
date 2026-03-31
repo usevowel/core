@@ -5,7 +5,8 @@
 
 import { getDb } from "./init";
 import { encryptApiKey, decryptApiKey, getEncryptionSecret } from "../lib/crypto";
-import type { EndpointProvider } from "./endpoint-presets";
+
+export type ApiKeyProvider = "vowel-core" | "vowel-prime" | "openai" | "grok";
 
 export interface ApiKeyRow {
   id: string;
@@ -16,8 +17,6 @@ export interface ApiKeyRow {
   scopes: string;
   label: string | null;
   allowed_providers: string;
-  allowed_endpoint_presets: string;
-  default_endpoint_preset: string | null;
   revoked_at: number | null;
   created_at: number;
 }
@@ -28,17 +27,13 @@ export interface CreateApiKeyInput {
   appId: string;
   scopes: ApiKeyScope[];
   label?: string;
-  allowedProviders?: EndpointProvider[];
-  allowedEndpointPresets?: string[];
-  defaultEndpointPreset?: string;
+  allowedProviders?: ApiKeyProvider[];
 }
 
 export interface UpdateApiKeyInput {
   scopes?: ApiKeyScope[];
   label?: string;
-  allowedProviders?: EndpointProvider[];
-  allowedEndpointPresets?: string[];
-  defaultEndpointPreset?: string | null;
+  allowedProviders?: ApiKeyProvider[];
 }
 
 export interface ApiKeyMeta {
@@ -47,9 +42,7 @@ export interface ApiKeyMeta {
   scopes: ApiKeyScope[];
   label: string | null;
   masked: string;
-  allowedProviders: EndpointProvider[];
-  allowedEndpointPresets: string[];
-  defaultEndpointPreset: string | null;
+  allowedProviders: ApiKeyProvider[];
   revokedAt: number | null;
   createdAt: number;
 }
@@ -62,18 +55,14 @@ export interface ValidatedApiKey {
   id: string;
   appId: string;
   scopes: ApiKeyScope[];
-  allowedProviders: EndpointProvider[];
-  allowedEndpointPresets: string[];
-  defaultEndpointPreset: string | null;
+  allowedProviders: ApiKeyProvider[];
 }
 
-const VALID_PROVIDERS: EndpointProvider[] = ["vowel-prime", "openai", "grok"];
-const DEFAULT_ALLOWED_PROVIDERS: EndpointProvider[] = ["vowel-prime"];
-const DEFAULT_ALLOWED_ENDPOINT_PRESETS = ["staging"];
+const VALID_PROVIDERS: ApiKeyProvider[] = ["vowel-core", "vowel-prime", "openai", "grok"];
+const DEFAULT_ALLOWED_PROVIDERS: ApiKeyProvider[] = ["vowel-prime"];
 
-// vkey_ prefix + 64 hex chars = 70 chars total
 const KEY_PREFIX = "vkey_";
-const KEY_RANDOM_BYTES = 32; // 64 hex chars
+const KEY_RANDOM_BYTES = 32;
 
 function generateApiKey(): string {
   const randomBytes = crypto.getRandomValues(new Uint8Array(KEY_RANDOM_BYTES));
@@ -102,43 +91,18 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
-function normalizeAllowedProviders(input?: EndpointProvider[]): EndpointProvider[] {
+function normalizeAllowedProviders(input?: ApiKeyProvider[]): ApiKeyProvider[] {
   const source = input && input.length > 0 ? input : DEFAULT_ALLOWED_PROVIDERS;
   const unique = Array.from(new Set(source));
-  const filtered = unique.filter((provider): provider is EndpointProvider =>
+  const filtered = unique.filter((provider): provider is ApiKeyProvider =>
     VALID_PROVIDERS.includes(provider)
   );
   return filtered.length > 0 ? filtered : DEFAULT_ALLOWED_PROVIDERS;
 }
 
-function normalizeAllowedEndpointPresets(input?: string[]): string[] {
-  const source = input && input.length > 0 ? input : DEFAULT_ALLOWED_ENDPOINT_PRESETS;
-  const cleaned = source
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0);
-  const unique = Array.from(new Set(cleaned));
-  return unique.length > 0 ? unique : DEFAULT_ALLOWED_ENDPOINT_PRESETS;
-}
-
-function resolveDefaultEndpointPreset(
-  requestedDefault: string | null | undefined,
-  allowedPresets: string[]
-): string | null {
-  if (!requestedDefault) {
-    return allowedPresets[0] ?? null;
-  }
-  if (allowedPresets.includes(requestedDefault)) {
-    return requestedDefault;
-  }
-  return allowedPresets[0] ?? null;
-}
-
 function rowToMeta(row: ApiKeyRow, maskedOverride?: string): ApiKeyMeta {
   const allowedProviders = normalizeAllowedProviders(
-    parseJsonArray<EndpointProvider>(row.allowed_providers, DEFAULT_ALLOWED_PROVIDERS)
-  );
-  const allowedEndpointPresets = normalizeAllowedEndpointPresets(
-    parseJsonArray<string>(row.allowed_endpoint_presets, DEFAULT_ALLOWED_ENDPOINT_PRESETS)
+    parseJsonArray<ApiKeyProvider>(row.allowed_providers, DEFAULT_ALLOWED_PROVIDERS)
   );
   return {
     id: row.id,
@@ -147,11 +111,6 @@ function rowToMeta(row: ApiKeyRow, maskedOverride?: string): ApiKeyMeta {
     label: row.label,
     masked: maskedOverride ?? "vkey_••••••...••••",
     allowedProviders,
-    allowedEndpointPresets,
-    defaultEndpointPreset: resolveDefaultEndpointPreset(
-      row.default_endpoint_preset,
-      allowedEndpointPresets
-    ),
     revokedAt: row.revoked_at,
     createdAt: row.created_at,
   };
@@ -162,9 +121,7 @@ async function insertApiKeyRecord(input: {
   plaintext: string;
   scopes: ApiKeyScope[];
   label?: string;
-  allowedProviders?: EndpointProvider[];
-  allowedEndpointPresets?: string[];
-  defaultEndpointPreset?: string | null;
+  allowedProviders?: ApiKeyProvider[];
 }): Promise<ApiKeyWithPlaintext> {
   const keyHash = hashKey(input.plaintext);
   const secret = getEncryptionSecret();
@@ -174,22 +131,14 @@ async function insertApiKeyRecord(input: {
   const now = Date.now();
   const scopesJson = JSON.stringify(input.scopes);
   const allowedProviders = normalizeAllowedProviders(input.allowedProviders);
-  const allowedEndpointPresets = normalizeAllowedEndpointPresets(
-    input.allowedEndpointPresets
-  );
-  const defaultEndpointPreset = resolveDefaultEndpointPreset(
-    input.defaultEndpointPreset,
-    allowedEndpointPresets
-  );
 
   const db = getDb();
   db.run(
     `INSERT INTO api_keys (
       id, app_id, key_hash, encrypted_key, iv, scopes, label,
-      allowed_providers, allowed_endpoint_presets, default_endpoint_preset,
-      revoked_at, created_at
+      allowed_providers, revoked_at, created_at
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
     [
       id,
       input.appId,
@@ -199,8 +148,6 @@ async function insertApiKeyRecord(input: {
       scopesJson,
       input.label ?? null,
       JSON.stringify(allowedProviders),
-      JSON.stringify(allowedEndpointPresets),
-      defaultEndpointPreset,
       now,
     ]
   );
@@ -214,16 +161,11 @@ async function insertApiKeyRecord(input: {
     masked: maskKey(input.plaintext),
     plaintext: input.plaintext,
     allowedProviders,
-    allowedEndpointPresets,
-    defaultEndpointPreset,
     revokedAt: null,
     createdAt: now,
   };
 }
 
-/**
- * Create a new API key. Returns the plaintext key (shown once).
- */
 export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWithPlaintext> {
   const plaintext = generateApiKey();
   return insertApiKeyRecord({
@@ -232,30 +174,22 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<ApiKeyWith
     scopes: input.scopes,
     label: input.label,
     allowedProviders: input.allowedProviders,
-    allowedEndpointPresets: input.allowedEndpointPresets,
-    defaultEndpointPreset: input.defaultEndpointPreset,
   });
 }
 
-/**
- * Ensure a specific plaintext key exists. Used for bootstrap/dev seeding.
- */
 export async function ensureApiKeyFromPlaintext(input: {
   plaintext: string;
   appId: string;
   scopes: ApiKeyScope[];
   label?: string;
-  allowedProviders?: EndpointProvider[];
-  allowedEndpointPresets?: string[];
-  defaultEndpointPreset?: string | null;
+  allowedProviders?: ApiKeyProvider[];
 }): Promise<{ created: boolean; key: ApiKeyMeta }> {
   const keyHash = hashKey(input.plaintext);
   const db = getDb();
   const row = db
     .query(
       `SELECT id, app_id, key_hash, encrypted_key, iv, scopes, label,
-              allowed_providers, allowed_endpoint_presets, default_endpoint_preset,
-              revoked_at, created_at
+              allowed_providers, revoked_at, created_at
        FROM api_keys WHERE key_hash = ?`
     )
     .get(keyHash) as ApiKeyRow | undefined;
@@ -271,8 +205,6 @@ export async function ensureApiKeyFromPlaintext(input: {
     scopes: input.scopes,
     label: input.label,
     allowedProviders: input.allowedProviders,
-    allowedEndpointPresets: input.allowedEndpointPresets,
-    defaultEndpointPreset: input.defaultEndpointPreset,
   });
 
   return {
@@ -284,24 +216,18 @@ export async function ensureApiKeyFromPlaintext(input: {
       label: inserted.label,
       masked: inserted.masked,
       allowedProviders: inserted.allowedProviders,
-      allowedEndpointPresets: inserted.allowedEndpointPresets,
-      defaultEndpointPreset: inserted.defaultEndpointPreset,
       revokedAt: inserted.revokedAt,
       createdAt: inserted.createdAt,
     },
   };
 }
 
-/**
- * List API keys for an app with masked previews.
- */
 export async function listApiKeys(appId: string): Promise<ApiKeyMeta[]> {
   const db = getDb();
   const rows = db
     .query(
       `SELECT id, app_id, key_hash, encrypted_key, iv, scopes, label,
-              allowed_providers, allowed_endpoint_presets, default_endpoint_preset,
-              revoked_at, created_at
+              allowed_providers, revoked_at, created_at
        FROM api_keys WHERE app_id = ? ORDER BY created_at DESC`
     )
     .all(appId) as ApiKeyRow[];
@@ -325,10 +251,6 @@ export async function listApiKeys(appId: string): Promise<ApiKeyMeta[]> {
   return rows.map((row) => rowToMeta(row, maskedById.get(row.id)));
 }
 
-/**
- * Reveal stored plaintext for a publishable key.
- * Keys remain encrypted at rest and are decrypted on demand.
- */
 export async function revealApiKeyPlaintext(
   id: string,
   appId: string
@@ -359,10 +281,6 @@ export async function revealApiKeyPlaintext(
   }
 }
 
-/**
- * Validate an API key (for Bearer auth).
- * Returns the key metadata if valid, null otherwise.
- */
 export async function validateApiKey(
   plaintextKey: string
 ): Promise<ValidatedApiKey | null> {
@@ -372,13 +290,11 @@ export async function validateApiKey(
   }
 
   const keyHash = hashKey(normalizedKey);
-
   const db = getDb();
   const row = db
     .query(
       `SELECT id, app_id, encrypted_key, iv, scopes,
-              allowed_providers, allowed_endpoint_presets,
-              default_endpoint_preset, revoked_at
+              allowed_providers, revoked_at
        FROM api_keys WHERE key_hash = ?`
     )
     .get(keyHash) as Omit<ApiKeyRow, "label" | "created_at"> | undefined;
@@ -398,24 +314,12 @@ export async function validateApiKey(
       return null;
     }
 
-    const allowedEndpointPresets = normalizeAllowedEndpointPresets(
-      parseJsonArray<string>(row.allowed_endpoint_presets, DEFAULT_ALLOWED_ENDPOINT_PRESETS)
-    );
-
     return {
       id: row.id,
       appId: row.app_id,
       scopes: parseJsonArray<ApiKeyScope>(row.scopes, ["mint_ephemeral"]),
       allowedProviders: normalizeAllowedProviders(
-        parseJsonArray<EndpointProvider>(
-          row.allowed_providers,
-          DEFAULT_ALLOWED_PROVIDERS
-        )
-      ),
-      allowedEndpointPresets,
-      defaultEndpointPreset: resolveDefaultEndpointPreset(
-        row.default_endpoint_preset,
-        allowedEndpointPresets
+        parseJsonArray<ApiKeyProvider>(row.allowed_providers, DEFAULT_ALLOWED_PROVIDERS)
       ),
     };
   } catch {
@@ -423,9 +327,6 @@ export async function validateApiKey(
   }
 }
 
-/**
- * Update API key policy settings.
- */
 export function updateApiKey(
   id: string,
   appId: string,
@@ -435,8 +336,7 @@ export function updateApiKey(
   const row = db
     .query(
       `SELECT id, app_id, key_hash, encrypted_key, iv, scopes, label,
-              allowed_providers, allowed_endpoint_presets, default_endpoint_preset,
-              revoked_at, created_at
+              allowed_providers, revoked_at, created_at
        FROM api_keys WHERE id = ? AND app_id = ?`
     )
     .get(id, appId) as ApiKeyRow | undefined;
@@ -449,31 +349,17 @@ export function updateApiKey(
   const scopes = input.scopes ?? parseJsonArray<ApiKeyScope>(row.scopes, ["mint_ephemeral"]);
   const allowedProviders = normalizeAllowedProviders(
     input.allowedProviders ??
-      parseJsonArray<EndpointProvider>(row.allowed_providers, DEFAULT_ALLOWED_PROVIDERS)
-  );
-  const allowedEndpointPresets = normalizeAllowedEndpointPresets(
-    input.allowedEndpointPresets ??
-      parseJsonArray<string>(row.allowed_endpoint_presets, DEFAULT_ALLOWED_ENDPOINT_PRESETS)
-  );
-  const defaultEndpointPreset = resolveDefaultEndpointPreset(
-    input.defaultEndpointPreset === undefined
-      ? row.default_endpoint_preset
-      : input.defaultEndpointPreset,
-    allowedEndpointPresets
+      parseJsonArray<ApiKeyProvider>(row.allowed_providers, DEFAULT_ALLOWED_PROVIDERS)
   );
 
   db.run(
     `UPDATE api_keys
-     SET scopes = ?, label = ?,
-         allowed_providers = ?, allowed_endpoint_presets = ?,
-         default_endpoint_preset = ?
+     SET scopes = ?, label = ?, allowed_providers = ?
      WHERE id = ? AND app_id = ?`,
     [
       JSON.stringify(scopes),
       input.label === undefined ? row.label : input.label,
       JSON.stringify(allowedProviders),
-      JSON.stringify(allowedEndpointPresets),
-      defaultEndpointPreset,
       id,
       appId,
     ]
@@ -482,8 +368,7 @@ export function updateApiKey(
   const updated = db
     .query(
       `SELECT id, app_id, key_hash, encrypted_key, iv, scopes, label,
-              allowed_providers, allowed_endpoint_presets, default_endpoint_preset,
-              revoked_at, created_at
+              allowed_providers, revoked_at, created_at
        FROM api_keys WHERE id = ? AND app_id = ?`
     )
     .get(id, appId) as ApiKeyRow;
@@ -492,9 +377,6 @@ export function updateApiKey(
   return rowToMeta(updated);
 }
 
-/**
- * Revoke an API key without deleting historical metadata.
- */
 export function revokeApiKey(id: string, appId: string): boolean {
   const db = getDb();
   const result = db.run(
@@ -505,9 +387,6 @@ export function revokeApiKey(id: string, appId: string): boolean {
   return result.changes > 0;
 }
 
-/**
- * Delete an API key.
- */
 export function deleteApiKey(id: string, appId: string): boolean {
   const db = getDb();
   const result = db.run("DELETE FROM api_keys WHERE id = ? AND app_id = ?", [id, appId]);
@@ -516,9 +395,6 @@ export function deleteApiKey(id: string, appId: string): boolean {
   return result.changes > 0;
 }
 
-/**
- * Get app ID from API key (for token generation).
- */
 export async function getAppIdFromApiKey(
   plaintextKey: string
 ): Promise<string | null> {

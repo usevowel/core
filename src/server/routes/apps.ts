@@ -26,6 +26,17 @@ export const appsRoutes = new Elysia({ prefix: "/api" })
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
+    if (
+      input.runtimeConfig !== undefined &&
+      (typeof input.runtimeConfig !== "object" ||
+        input.runtimeConfig === null ||
+        Array.isArray(input.runtimeConfig))
+    ) {
+      return new Response(
+        JSON.stringify({ message: "runtimeConfig must be a JSON object" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
     return createApp(input);
   })
   .get("/apps/:appId", ({ params }) => {
@@ -40,6 +51,17 @@ export const appsRoutes = new Elysia({ prefix: "/api" })
   })
   .patch("/apps/:appId", ({ params, body }) => {
     const input = body as UpdateAppInput;
+    if (
+      input.runtimeConfig !== undefined &&
+      (typeof input.runtimeConfig !== "object" ||
+        input.runtimeConfig === null ||
+        Array.isArray(input.runtimeConfig))
+    ) {
+      return new Response(
+        JSON.stringify({ message: "runtimeConfig must be a JSON object" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
     const app = updateApp(params.appId, input);
     if (!app) {
       return new Response(

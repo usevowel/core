@@ -35,22 +35,54 @@ function hasColumn(db: Database, table: string, column: string): boolean {
 }
 
 function runMigrations(db: Database): void {
+  if (!hasColumn(db, "apps", "runtime_config")) {
+    db.run(`ALTER TABLE apps ADD COLUMN runtime_config TEXT`);
+  }
   if (!hasColumn(db, "api_keys", "allowed_providers")) {
     db.run(
       `ALTER TABLE api_keys ADD COLUMN allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]'`
     );
   }
-  if (!hasColumn(db, "api_keys", "allowed_endpoint_presets")) {
-    db.run(
-      `ALTER TABLE api_keys ADD COLUMN allowed_endpoint_presets TEXT NOT NULL DEFAULT '["staging"]'`
-    );
-  }
-  if (!hasColumn(db, "api_keys", "default_endpoint_preset")) {
-    db.run(`ALTER TABLE api_keys ADD COLUMN default_endpoint_preset TEXT`);
-  }
   if (!hasColumn(db, "api_keys", "revoked_at")) {
     db.run(`ALTER TABLE api_keys ADD COLUMN revoked_at INTEGER`);
   }
+
+  if (
+    hasColumn(db, "api_keys", "allowed_endpoint_presets") ||
+    hasColumn(db, "api_keys", "default_endpoint_preset")
+  ) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_keys_v2 (
+        id TEXT PRIMARY KEY,
+        app_id TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        encrypted_key BLOB NOT NULL,
+        iv BLOB NOT NULL,
+        scopes TEXT NOT NULL,
+        label TEXT,
+        allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]',
+        revoked_at INTEGER,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (app_id) REFERENCES apps(id)
+      );
+
+      INSERT INTO api_keys_v2 (
+        id, app_id, key_hash, encrypted_key, iv, scopes, label,
+        allowed_providers, revoked_at, created_at
+      )
+      SELECT
+        id, app_id, key_hash, encrypted_key, iv, scopes, label,
+        allowed_providers, revoked_at, created_at
+      FROM api_keys;
+
+      DROP TABLE api_keys;
+      ALTER TABLE api_keys_v2 RENAME TO api_keys;
+      CREATE INDEX IF NOT EXISTS idx_api_keys_app_id ON api_keys(app_id);
+      CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+    `);
+  }
+
+  db.run(`DROP TABLE IF EXISTS endpoint_presets`);
 }
 
 export function initDb(): void {
