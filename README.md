@@ -4,6 +4,8 @@ Self-hosted token service + Web UI for the vowel platform. Ephemeral token minti
 
 ![Vowel Core UI](assets/VowelCoreUI.png)
 
+> **⚠️ Beta Release** — This open-source release is in beta. You may encounter rough edges, incomplete features, or breaking changes. We are actively reviewing and merging community PRs, but please expect some instability as we iterate toward a stable release. Your feedback and contributions are welcome.
+
 ## Quick Start
 
 ```bash
