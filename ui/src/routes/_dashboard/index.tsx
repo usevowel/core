@@ -42,19 +42,19 @@ function DashboardPage() {
   }, []);
 
   const providers = status?.providers ?? {
-    "vowel-prime": { configured: false },
+    engine: { configured: false },
     openai: { configured: false },
     grok: { configured: false },
   };
 
   const providerIcons: Record<string, React.ElementType> = {
-    "vowel-prime": Bot,
+    engine: Bot,
     openai: Cpu,
     grok: Zap,
   };
 
   const providerLabels: Record<string, string> = {
-    "vowel-prime": "Vowel Engine",
+    engine: "Vowel Engine",
     openai: "OpenAI Realtime",
     grok: "Grok Realtime",
   };
@@ -143,7 +143,7 @@ function DashboardPage() {
             </Card>
           </Link>
 
-          <Link to="/token">
+          <Link to="/test">
             <Card className="transition-colors hover:border-primary/50 hover:bg-accent/5">
               <CardHeader>
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
@@ -171,7 +171,7 @@ function DashboardPage() {
                 </div>
                 <CardTitle className="mt-4">API Providers</CardTitle>
                 <CardDescription>
-                  Configure API keys for vowel-prime, OpenAI, and Grok.
+                  Configure API keys for Vowel Engine, OpenAI, and Grok.
                 </CardDescription>
               </CardHeader>
               <CardContent>

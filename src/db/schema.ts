@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   iv BLOB NOT NULL,
   scopes TEXT NOT NULL,
   label TEXT,
-  allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]',
+  allowed_providers TEXT NOT NULL DEFAULT '["engine"]',
   revoked_at INTEGER,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (app_id) REFERENCES apps(id)

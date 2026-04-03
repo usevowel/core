@@ -40,7 +40,7 @@ function runMigrations(db: Database): void {
   }
   if (!hasColumn(db, "api_keys", "allowed_providers")) {
     db.run(
-      `ALTER TABLE api_keys ADD COLUMN allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]'`
+      `ALTER TABLE api_keys ADD COLUMN allowed_providers TEXT NOT NULL DEFAULT '["engine"]'`
     );
   }
   if (!hasColumn(db, "api_keys", "revoked_at")) {
@@ -60,7 +60,7 @@ function runMigrations(db: Database): void {
         iv BLOB NOT NULL,
         scopes TEXT NOT NULL,
         label TEXT,
-        allowed_providers TEXT NOT NULL DEFAULT '["vowel-prime"]',
+        allowed_providers TEXT NOT NULL DEFAULT '["engine"]',
         revoked_at INTEGER,
         created_at INTEGER NOT NULL,
         FOREIGN KEY (app_id) REFERENCES apps(id)

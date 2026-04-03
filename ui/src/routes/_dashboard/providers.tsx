@@ -43,7 +43,7 @@ interface EngineConfigResponse {
 }
 
 const PROVIDER_OPTIONS = [
-  { value: "vowel-prime", label: "Vowel Engine", icon: Bot },
+  { value: "engine", label: "Vowel Engine", icon: Bot },
   { value: "openai", label: "OpenAI Realtime", icon: Cpu },
   { value: "grok", label: "Grok Realtime", icon: Zap },
 ] as const;
@@ -62,7 +62,7 @@ function ProvidersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const providerStatus = status?.providers ?? {
-    "vowel-prime": { configured: false, secretEnv: "VOWEL_ENGINE_API_KEY" },
+    engine: { configured: false, secretEnv: "VOWEL_ENGINE_API_KEY" },
     openai: { configured: false, secretEnv: "OPENAI_API_KEY" },
     grok: { configured: false, secretEnv: "XAI_API_KEY" },
   };

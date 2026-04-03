@@ -5,12 +5,20 @@
 
 import { getApp } from "../db/apps";
 import { validateApiKey } from "../db/api-keys";
+import {
+  normalizeCoreProvider,
+  toClientTokenProvider,
+  type ClientTokenProvider,
+  type CoreBackendProvider,
+  type CoreProviderInput,
+} from "../lib/provider-identity";
 
 export interface TokenRequestBody {
+  apiKey?: string;
   appId?: string;
   origin: string;
   config?: {
-    provider?: "vowel-core" | "vowel-prime" | "openai" | "grok";
+    provider?: CoreProviderInput;
     routes?: Array<{
       path: string;
       description: string;
@@ -73,7 +81,7 @@ export interface TokenResponse {
   tokenName: string;
   token?: string;
   model: string;
-  provider: "vowel-core" | "vowel-prime" | "openai" | "grok";
+  provider: ClientTokenProvider;
   expiresAt: string;
   metadata?: Record<string, unknown>;
   systemInstructions?: string;
@@ -89,10 +97,9 @@ export class TokenRequestError extends Error {
   }
 }
 
-function requireProviderSecret(provider: "vowel-core" | "vowel-prime" | "openai" | "grok"): string {
+function requireProviderSecret(provider: CoreBackendProvider): string {
   const envKeys: Record<typeof provider, string | undefined> = {
-    "vowel-core": process.env.VOWEL_ENGINE_API_KEY,
-    "vowel-prime": process.env.VOWEL_ENGINE_API_KEY,
+    engine: process.env.VOWEL_ENGINE_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     grok: process.env.XAI_API_KEY,
   };
@@ -102,7 +109,7 @@ function requireProviderSecret(provider: "vowel-core" | "vowel-prime" | "openai"
     throw new TokenRequestError(
       400,
       `No API key for ${provider}. Set ${
-        provider === "vowel-core" || provider === "vowel-prime"
+        provider === "engine"
           ? "VOWEL_ENGINE_API_KEY"
           : provider === "openai"
             ? "OPENAI_API_KEY"
@@ -115,10 +122,14 @@ function requireProviderSecret(provider: "vowel-core" | "vowel-prime" | "openai"
 }
 
 function ensureAllowedProvider(
-  requestedProvider: "vowel-core" | "vowel-prime" | "openai" | "grok",
+  requestedProvider: CoreBackendProvider,
   allowedProviders: string[]
 ): void {
-  if (!allowedProviders.includes(requestedProvider)) {
+  const normalizedAllowedProviders = allowedProviders
+    .map((provider) => normalizeCoreProvider(provider))
+    .filter((provider): provider is CoreBackendProvider => Boolean(provider));
+
+  if (!normalizedAllowedProviders.includes(requestedProvider)) {
     throw new TokenRequestError(
       403,
       `Provider ${requestedProvider} is not allowed for this publishable key`
@@ -217,13 +228,14 @@ export async function handleGenerateToken(
   }
 
   const appRuntimeConfig = app.runtimeConfig as TokenRequestBody["config"] | null;
-  const provider = appRuntimeConfig?.provider ?? body.config?.provider ?? "vowel-prime";
+  const provider =
+    normalizeCoreProvider(appRuntimeConfig?.provider ?? body.config?.provider) ?? "engine";
   const effectiveConfig: TokenRequestBody["config"] = {
     ...(body.config ?? {}),
     ...(appRuntimeConfig ?? {}),
     provider,
     voiceConfig:
-      provider === "vowel-core"
+      provider === "engine"
         ? appRuntimeConfig?.voiceConfig
         : appRuntimeConfig?.voiceConfig ?? body.config?.voiceConfig,
   };
@@ -234,20 +246,19 @@ export async function handleGenerateToken(
   const systemInstructions = buildSystemInstructions(effectiveConfig, appId);
   const model =
     voiceConfig?.model ??
-    (provider === "vowel-prime" || provider === "vowel-core"
+    (provider === "engine"
       ? "openai/gpt-oss-20b"
       : "gpt-realtime");
   const voice =
     voiceConfig?.voice ??
-    (provider === "vowel-prime" || provider === "vowel-core" ? "Ashley" : "alloy");
+    (provider === "engine" ? "Ashley" : "alloy");
 
-  if (provider === "vowel-prime" || provider === "vowel-core") {
+  if (provider === "engine") {
     const endpoint = `${getVowelEngineBaseUrl()}/v1/realtime/sessions`;
     const providerApiKey = requireProviderSecret(provider);
     const {
       model: _model,
       voice: _voice,
-      language: _language,
       vowelPrimeConfig: _vowelPrimeConfig,
       openrouterOptions,
       ...otherVoiceConfig
@@ -281,7 +292,7 @@ export async function handleGenerateToken(
       const err = await res.json().catch(() => ({}));
       throw new TokenRequestError(
         502,
-        err.error?.message || res.statusText || "vowel-prime token failed"
+        err.error?.message || res.statusText || "engine token failed"
       );
     }
 
@@ -293,14 +304,14 @@ export async function handleGenerateToken(
     const expiresAt = data.client_secret?.expires_at ?? Math.floor(Date.now() / 1000) + 300;
 
     if (!tokenValue) {
-      throw new TokenRequestError(502, "No token value in vowel-prime response");
+      throw new TokenRequestError(502, "No token value in engine response");
     }
 
     return {
       tokenName: tokenValue,
       token: tokenValue,
       model,
-      provider,
+      provider: toClientTokenProvider(provider),
       expiresAt: new Date(expiresAt * 1000).toISOString(),
       metadata: {
         baseUrl: getVowelEngineWebsocketUrl(),

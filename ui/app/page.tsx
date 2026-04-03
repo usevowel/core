@@ -1,3 +1,4 @@
+// @ts-expect-error Legacy Next.js stub kept alongside the Vite UI.
 import Link from "next/link";
 
 /**
@@ -10,7 +11,7 @@ export default async function HomePage() {
   ).then((r) => r.json().catch(() => ({})));
 
   const providers = status?.providers ?? {
-    "vowel-prime": { configured: false },
+    engine: { configured: false },
     openai: { configured: false },
     grok: { configured: false },
   };
@@ -50,13 +51,13 @@ export default async function HomePage() {
               <div
                 className="stat-value"
                 style={{
-                  color: providers["vowel-prime"]?.configured
+                  color: providers.engine?.configured
                     ? "var(--green)"
                     : "var(--red)",
                   fontSize: "1.2rem",
                 }}
               >
-                {providers["vowel-prime"]?.configured ? "Configured" : "Not set"}
+                {providers.engine?.configured ? "Configured" : "Not set"}
               </div>
             </div>
             <div className="card" style={{ padding: 20 }}>

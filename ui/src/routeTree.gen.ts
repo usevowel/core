@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
-import { Route as DashboardTokenRouteImport } from './routes/_dashboard/token'
+import { Route as DashboardTestRouteImport } from './routes/_dashboard/test'
 import { Route as DashboardProvidersRouteImport } from './routes/_dashboard/providers'
 import { Route as DashboardAppsIndexRouteImport } from './routes/_dashboard/apps/index'
 import { Route as DashboardAppsAppIdRouteImport } from './routes/_dashboard/apps/$appId'
@@ -25,9 +25,9 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardTokenRoute = DashboardTokenRouteImport.update({
-  id: '/token',
-  path: '/token',
+const DashboardTestRoute = DashboardTestRouteImport.update({
+  id: '/test',
+  path: '/test',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardProvidersRoute = DashboardProvidersRouteImport.update({
@@ -49,13 +49,13 @@ const DashboardAppsAppIdRoute = DashboardAppsAppIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/providers': typeof DashboardProvidersRoute
-  '/token': typeof DashboardTokenRoute
+  '/test': typeof DashboardTestRoute
   '/apps/$appId': typeof DashboardAppsAppIdRoute
   '/apps/': typeof DashboardAppsIndexRoute
 }
 export interface FileRoutesByTo {
   '/providers': typeof DashboardProvidersRoute
-  '/token': typeof DashboardTokenRoute
+  '/test': typeof DashboardTestRoute
   '/': typeof DashboardIndexRoute
   '/apps/$appId': typeof DashboardAppsAppIdRoute
   '/apps': typeof DashboardAppsIndexRoute
@@ -64,21 +64,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteWithChildren
   '/_dashboard/providers': typeof DashboardProvidersRoute
-  '/_dashboard/token': typeof DashboardTokenRoute
+  '/_dashboard/test': typeof DashboardTestRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/apps/$appId': typeof DashboardAppsAppIdRoute
   '/_dashboard/apps/': typeof DashboardAppsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/providers' | '/token' | '/apps/$appId' | '/apps/'
+  fullPaths: '/' | '/providers' | '/test' | '/apps/$appId' | '/apps/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/providers' | '/token' | '/' | '/apps/$appId' | '/apps'
+  to: '/providers' | '/test' | '/' | '/apps/$appId' | '/apps'
   id:
     | '__root__'
     | '/_dashboard'
     | '/_dashboard/providers'
-    | '/_dashboard/token'
+    | '/_dashboard/test'
     | '/_dashboard/'
     | '/_dashboard/apps/$appId'
     | '/_dashboard/apps/'
@@ -104,11 +104,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/token': {
-      id: '/_dashboard/token'
-      path: '/token'
-      fullPath: '/token'
-      preLoaderRoute: typeof DashboardTokenRouteImport
+    '/_dashboard/test': {
+      id: '/_dashboard/test'
+      path: '/test'
+      fullPath: '/test'
+      preLoaderRoute: typeof DashboardTestRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/providers': {
@@ -137,7 +137,7 @@ declare module '@tanstack/react-router' {
 
 interface DashboardRouteChildren {
   DashboardProvidersRoute: typeof DashboardProvidersRoute
-  DashboardTokenRoute: typeof DashboardTokenRoute
+  DashboardTestRoute: typeof DashboardTestRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardAppsAppIdRoute: typeof DashboardAppsAppIdRoute
   DashboardAppsIndexRoute: typeof DashboardAppsIndexRoute
@@ -145,7 +145,7 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardProvidersRoute: DashboardProvidersRoute,
-  DashboardTokenRoute: DashboardTokenRoute,
+  DashboardTestRoute: DashboardTestRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardAppsAppIdRoute: DashboardAppsAppIdRoute,
   DashboardAppsIndexRoute: DashboardAppsIndexRoute,

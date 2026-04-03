@@ -1,13 +1,13 @@
 /**
  * Provider keys persistence.
- * Stores encrypted API keys per app for vowel-prime, openai, grok.
+ * Stores encrypted API keys per app for engine, openai, grok.
  */
 
 import type { Database } from "bun:sqlite";
 import { getDb } from "./init";
 import { encryptApiKey, decryptApiKey, getEncryptionSecret } from "../lib/crypto";
 
-export type ProviderType = "vowel-prime" | "openai" | "grok";
+export type ProviderType = "engine" | "openai" | "grok";
 
 export interface ProviderKeyRow {
   id: string;
@@ -173,7 +173,7 @@ export async function findProviderKeyForToken(
 
   // Prefer key matching requested env/workerUrl
   let chosen = rows[0];
-  if (vowelPrimeConfig && provider === "vowel-prime") {
+  if (vowelPrimeConfig && provider === "engine") {
     const env = vowelPrimeConfig.environment;
     const url = vowelPrimeConfig.workerUrl;
     const match = rows.find(

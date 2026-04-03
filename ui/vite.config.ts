@@ -4,13 +4,27 @@ import { tanstackRouter } from "@tanstack/router-vite-plugin";
 import path from "path";
 
 export default defineConfig({
-  plugins: [tanstackRouter(), react()],
+  plugins: [
+    tanstackRouter({
+      generatedRouteTree: "./src/routeTree.gen.ts",
+    }),
+    react({
+      include: "**/*.{jsx,tsx}",
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
+    hmr: {
+      overlay: true,
+    },
+    watch: {
+      usePolling: true,
+      interval: 100,
+    },
     proxy: {
       "/api": "http://localhost:3001",
       "/vowel": "http://localhost:3001",

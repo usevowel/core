@@ -21,7 +21,7 @@ async function main() {
     console.log("2. Adding provider key...");
     await createProviderKey({
       appId: app.id,
-      provider: "vowel-prime",
+      provider: "engine",
       apiKey: process.env.VOWEL_ENGINE_API_KEY || "",
       vowelPrimeEnvironment: "staging",
     });
@@ -41,11 +41,10 @@ async function main() {
       appId: app.id,
       origin: "http://localhost",
       config: {
-        provider: "vowel-prime",
+        provider: "engine",
         voiceConfig: {
           model: DEFAULT_TEST_MODEL,
           voice: "Ashley",
-          vowelPrimeConfig: { environment: "staging" },
         },
       },
     }, apiKey.plaintext);
@@ -59,7 +58,7 @@ async function main() {
     // Also run the harness automatically
     console.log("\n🧪 Running WebSocket harness now...\n");
     process.env.TEST_TOKEN = token.tokenName;
-    await import("./ws-harness.ts");
+    await import("./ws-harness");
 
   } catch (error) {
     console.error("❌ Error:", error);

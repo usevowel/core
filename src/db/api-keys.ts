@@ -5,8 +5,9 @@
 
 import { getDb } from "./init";
 import { encryptApiKey, decryptApiKey, getEncryptionSecret } from "../lib/crypto";
+import { normalizeCoreProvider, type CoreBackendProvider } from "../lib/provider-identity";
 
-export type ApiKeyProvider = "vowel-core" | "vowel-prime" | "openai" | "grok";
+export type ApiKeyProvider = CoreBackendProvider;
 
 export interface ApiKeyRow {
   id: string;
@@ -58,8 +59,8 @@ export interface ValidatedApiKey {
   allowedProviders: ApiKeyProvider[];
 }
 
-const VALID_PROVIDERS: ApiKeyProvider[] = ["vowel-core", "vowel-prime", "openai", "grok"];
-const DEFAULT_ALLOWED_PROVIDERS: ApiKeyProvider[] = ["vowel-prime"];
+const VALID_PROVIDERS: ApiKeyProvider[] = ["engine", "openai", "grok"];
+const DEFAULT_ALLOWED_PROVIDERS: ApiKeyProvider[] = ["engine"];
 
 const KEY_PREFIX = "vkey_";
 const KEY_RANDOM_BYTES = 32;
@@ -93,10 +94,8 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
 
 function normalizeAllowedProviders(input?: ApiKeyProvider[]): ApiKeyProvider[] {
   const source = input && input.length > 0 ? input : DEFAULT_ALLOWED_PROVIDERS;
-  const unique = Array.from(new Set(source));
-  const filtered = unique.filter((provider): provider is ApiKeyProvider =>
-    VALID_PROVIDERS.includes(provider)
-  );
+  const unique = Array.from(new Set(source.map((provider) => normalizeCoreProvider(provider))));
+  const filtered = unique.filter((provider): provider is ApiKeyProvider => Boolean(provider));
   return filtered.length > 0 ? filtered : DEFAULT_ALLOWED_PROVIDERS;
 }
 

@@ -31,7 +31,7 @@ async function main() {
       body: JSON.stringify({
         "0": {
           appId,
-          provider: "vowel-prime",
+          provider: "engine",
           apiKey: process.env.VOWEL_ENGINE_API_KEY,
           vowelPrimeEnvironment: "staging",
         }
@@ -64,7 +64,7 @@ async function main() {
         appId,
         origin: "http://localhost",
         config: {
-          provider: "vowel-prime",
+          provider: "engine",
           voiceConfig: {
             model: DEFAULT_TEST_MODEL,
             voice: "Ashley",

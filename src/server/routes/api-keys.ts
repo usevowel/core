@@ -14,9 +14,9 @@ import {
   type ApiKeyScope,
   type ApiKeyProvider,
 } from "../../db/api-keys";
+import { normalizeCoreProvider, type CoreProviderInput } from "../../lib/provider-identity";
 
 const VALID_SCOPES: ApiKeyScope[] = ["mint_ephemeral", "direct_ws"];
-const VALID_PROVIDERS: ApiKeyProvider[] = ["vowel-core", "vowel-prime", "openai", "grok"];
 
 export const apiKeysRoutes = new Elysia({ prefix: "/api" })
   .get("/apps/:appId/api-keys", async ({ params }) => {
@@ -36,9 +36,9 @@ export const apiKeysRoutes = new Elysia({ prefix: "/api" })
     }
 
     const allowedProviders = Array.isArray(payload.allowedProviders)
-      ? payload.allowedProviders.filter((provider): provider is ApiKeyProvider =>
-          VALID_PROVIDERS.includes(provider)
-        )
+      ? payload.allowedProviders
+          .map((provider) => normalizeCoreProvider(provider as CoreProviderInput))
+          .filter((provider): provider is ApiKeyProvider => Boolean(provider))
       : undefined;
 
     const key = await createApiKey({
@@ -75,9 +75,9 @@ export const apiKeysRoutes = new Elysia({ prefix: "/api" })
     }
 
     const allowedProviders = Array.isArray(payload.allowedProviders)
-      ? payload.allowedProviders.filter((provider): provider is ApiKeyProvider =>
-          VALID_PROVIDERS.includes(provider)
-        )
+      ? payload.allowedProviders
+          .map((provider) => normalizeCoreProvider(provider as CoreProviderInput))
+          .filter((provider): provider is ApiKeyProvider => Boolean(provider))
       : undefined;
 
     const updated = updateApiKey(params.id, params.appId, {

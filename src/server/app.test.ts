@@ -27,10 +27,10 @@ describe("Vowel Core API", () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json).toHaveProperty("providers");
-      expect(json.providers).toHaveProperty("vowel-prime");
+      expect(json.providers).toHaveProperty("engine");
       expect(json.providers).toHaveProperty("openai");
       expect(json.providers).toHaveProperty("grok");
-      expect(typeof json.providers["vowel-prime"].configured).toBe("boolean");
+      expect(typeof json.providers.engine.configured).toBe("boolean");
     });
 
     test("reflects VOWEL_ENGINE_API_KEY when set", async () => {
@@ -39,7 +39,7 @@ describe("Vowel Core API", () => {
       try {
         const res = await app.fetch(new Request("http://localhost/api/status"));
         const json = await res.json();
-        expect(json.providers["vowel-prime"].configured).toBe(true);
+        expect(json.providers.engine.configured).toBe(true);
       } finally {
         if (orig !== undefined) process.env.VOWEL_ENGINE_API_KEY = orig;
         else delete process.env.VOWEL_ENGINE_API_KEY;
@@ -132,7 +132,7 @@ describe("Vowel Core API", () => {
       );
     };
 
-    test.skip("issues a vowel-prime token using default provider resolution", async () => {
+    test.skip("issues an engine-backed token using default provider resolution", async () => {
       const restoreEnv = setEnv({
         CORE_DEFAULT_PROVIDER: undefined,
         VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
@@ -154,7 +154,7 @@ describe("Vowel Core API", () => {
         expect(res.status).toBe(200);
         const json = await res.json();
         expect(json).toMatchObject({
-          provider: "vowel-prime",
+          provider: "vowel-core",
           model: DEFAULT_TEST_MODEL,
           metadata: {
             baseUrl: "ws://localhost:8787/v1/realtime",
@@ -260,7 +260,7 @@ describe("Vowel Core API", () => {
         VOWEL_ENGINE_URL: "https://engine.local",
         OPENAI_API_KEY: undefined,
         XAI_API_KEY: undefined,
-        CORE_DEFAULT_PROVIDER: "vowel-prime",
+        CORE_DEFAULT_PROVIDER: "engine",
       });
 
       try {
@@ -272,14 +272,14 @@ describe("Vowel Core API", () => {
         expect(res.status).toBe(400);
         const json = await res.json();
         expect(json.message).toContain(
-          "No API key for vowel-prime"
+          "No API key for engine"
         );
       } finally {
         restoreEnv();
       }
     });
 
-    test("keeps browser session config out of the vowel-prime token payload", async () => {
+    test("keeps browser session config out of the self-hosted engine token payload", async () => {
       const restoreEnv = setEnv({
         VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
         VOWEL_ENGINE_URL: "https://engine.local",
@@ -296,7 +296,7 @@ describe("Vowel Core API", () => {
         return new Response(
           JSON.stringify({
             client_secret: {
-              value: "test-vowel-prime-secret",
+              value: "test-engine-secret",
               expires_at: Math.floor(Date.now() / 1000) + 300,
             },
           }),
@@ -311,7 +311,7 @@ describe("Vowel Core API", () => {
         const res = await postGenerateToken(
           baseTokenRequest({
             config: {
-              provider: "vowel-prime",
+              provider: "engine",
               routes: [
                 { path: "/products", description: "Browse products" },
               ],
@@ -337,7 +337,7 @@ describe("Vowel Core API", () => {
               },
               systemInstructionOverride: "Custom instructions from client",
               voiceConfig: {
-                provider: "vowel-prime",
+                provider: "engine",
                 model: "openai/gpt-oss-120b",
                 voice: "Timothy",
                 llmProvider: "groq",
@@ -357,25 +357,19 @@ describe("Vowel Core API", () => {
         expect(res.status).toBe(200);
         expect(capturedRequestBody).toBeDefined();
         expect(capturedRequestBody).toMatchObject({
-          model: "openai/gpt-oss-120b",
-          voice: "Timothy",
-          llmProvider: "groq",
-          turnDetection: {
-            mode: "server_vad",
-            serverVAD: {
-              threshold: 0.5,
-              silenceDurationMs: 550,
-            },
-          },
+          model: "openai/gpt-oss-20b",
+          voice: "Ashley",
         });
+        expect(capturedRequestBody?.llmProvider).toBeUndefined();
+        expect(capturedRequestBody?.turnDetection).toBeUndefined();
         expect(capturedRequestBody?.instructions).toBeUndefined();
         expect(capturedRequestBody?.tools).toBeUndefined();
 
         const json = await res.json();
         expect(json).toMatchObject({
-          tokenName: "test-vowel-prime-secret",
-          model: "openai/gpt-oss-120b",
-          provider: "vowel-prime",
+          tokenName: "test-engine-secret",
+          model: "openai/gpt-oss-20b",
+          provider: "vowel-core",
           systemInstructions: "Custom instructions from client",
         });
         expect(json.metadata?.sessionConfigDeliveredViaClient).toBe(true);
@@ -414,7 +408,7 @@ describe("Vowel Core API", () => {
       const appRecord = createApp({
         name: "Runtime config app",
         runtimeConfig: {
-          provider: "vowel-prime",
+          provider: "engine",
           voiceConfig: {
             model: "runtime-model",
             voice: "runtime-voice",
@@ -424,7 +418,7 @@ describe("Vowel Core API", () => {
       const key = await createApiKey({
         appId: appRecord.id,
         scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-prime"],
+        allowedProviders: ["engine"],
       });
 
       const originalFetch = globalThis.fetch;
@@ -478,7 +472,7 @@ describe("Vowel Core API", () => {
       }
     });
 
-    test("issues self-hosted tokens with provider vowel-core", async () => {
+    test("issues self-hosted tokens from the engine backend as vowel-core", async () => {
       const restoreEnv = setEnv({
         VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
         VOWEL_ENGINE_URL: "https://engine.local",
@@ -489,7 +483,7 @@ describe("Vowel Core API", () => {
       const appRecord = createApp({
         name: "Vowel core app",
         runtimeConfig: {
-          provider: "vowel-core",
+          provider: "engine",
           voiceConfig: {
             model: "core-model",
             voice: "core-voice",
@@ -499,7 +493,7 @@ describe("Vowel Core API", () => {
       const key = await createApiKey({
         appId: appRecord.id,
         scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-core"],
+        allowedProviders: ["engine"],
       });
 
       const originalFetch = globalThis.fetch;
@@ -509,7 +503,7 @@ describe("Vowel Core API", () => {
         return new Response(
           JSON.stringify({
             client_secret: {
-              value: "test-vowel-core-secret",
+              value: "test-engine-core-secret",
               expires_at: Math.floor(Date.now() / 1000) + 300,
             },
           }),
@@ -544,7 +538,7 @@ describe("Vowel Core API", () => {
         const json = await res.json();
         expect(json).toMatchObject({
           provider: "vowel-core",
-          tokenName: "test-vowel-core-secret",
+          tokenName: "test-engine-core-secret",
           model: "core-model",
         });
       } finally {
@@ -553,7 +547,7 @@ describe("Vowel Core API", () => {
       }
     });
 
-    test("ignores request voiceConfig for provider vowel-core", async () => {
+    test("ignores request voiceConfig for provider engine", async () => {
       const restoreEnv = setEnv({
         VOWEL_ENGINE_API_KEY: "dev-test-vowel-engine-key",
         VOWEL_ENGINE_URL: "https://engine.local",
@@ -567,7 +561,7 @@ describe("Vowel Core API", () => {
       const key = await createApiKey({
         appId: appRecord.id,
         scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-core"],
+        allowedProviders: ["engine"],
       });
 
       const originalFetch = globalThis.fetch;
@@ -577,7 +571,7 @@ describe("Vowel Core API", () => {
         return new Response(
           JSON.stringify({
             client_secret: {
-              value: "test-vowel-core-default-secret",
+              value: "test-engine-default-secret",
               expires_at: Math.floor(Date.now() / 1000) + 300,
             },
           }),
@@ -600,7 +594,7 @@ describe("Vowel Core API", () => {
               appId: appRecord.id,
               origin: "http://localhost",
               config: {
-                provider: "vowel-core",
+                provider: "engine",
                 voiceConfig: {
                   model: "request-model",
                   voice: "request-voice",
@@ -644,7 +638,7 @@ describe("Vowel Core API", () => {
           body: JSON.stringify({
             label: "Policy key",
             scopes: ["mint_ephemeral"],
-            allowedProviders: ["vowel-prime"],
+            allowedProviders: ["engine"],
           }),
         })
       );
@@ -685,7 +679,7 @@ describe("Vowel Core API", () => {
           body: JSON.stringify({
             appId: appJson.id,
             origin: "http://localhost",
-            config: { provider: "vowel-prime" },
+            config: { provider: "engine" },
           }),
         })
       );
@@ -701,7 +695,7 @@ describe("Vowel Core API", () => {
       const key = await createApiKey({
         appId: appRecord.id,
         scopes: ["mint_ephemeral"],
-        allowedProviders: ["vowel-prime"],
+        allowedProviders: ["engine"],
       });
 
       const res = await app.fetch(
@@ -773,6 +767,65 @@ describe("Vowel Core API", () => {
         expect(json).toMatchObject({
           provider: "openai",
           tokenName: "test-client-secret",
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        if (previousOpenAiKey === undefined) {
+          delete process.env.OPENAI_API_KEY;
+        } else {
+          process.env.OPENAI_API_KEY = previousOpenAiKey;
+        }
+      }
+    });
+
+    test("accepts a publishable key via the legacy appId field alias", async () => {
+      const appRecord = createApp({
+        name: "Legacy appId alias app",
+      });
+      const key = await createApiKey({
+        appId: appRecord.id,
+        scopes: ["mint_ephemeral"],
+        allowedProviders: ["openai"],
+      });
+
+      const previousOpenAiKey = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = "dev-test-openai-key";
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            value: "test-client-secret-alias",
+            expires_at: Math.floor(Date.now() / 1000) + 300,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )) as unknown as typeof fetch;
+
+      try {
+        const res = await app.fetch(
+          new Request("http://localhost/vowel/api/generateToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              appId: key.plaintext,
+              origin: "http://localhost",
+              config: {
+                provider: "openai",
+              },
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json).toMatchObject({
+          provider: "openai",
+          tokenName: "test-client-secret-alias",
         });
       } finally {
         globalThis.fetch = originalFetch;

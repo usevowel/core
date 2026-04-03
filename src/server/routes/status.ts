@@ -7,11 +7,7 @@ import { getEngineHealth } from "../engine-config";
 
 export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async () => {
   const providers = {
-    "vowel-core": {
-      configured: Boolean(process.env.VOWEL_ENGINE_API_KEY),
-      secretEnv: "VOWEL_ENGINE_API_KEY",
-    },
-    "vowel-prime": {
+    engine: {
       configured: Boolean(process.env.VOWEL_ENGINE_API_KEY),
       secretEnv: "VOWEL_ENGINE_API_KEY",
     },

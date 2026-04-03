@@ -17,13 +17,20 @@ export const providerKeysRoutes = new Elysia({ prefix: "/api" })
     return keys;
   })
   .post("/apps/:appId/provider-keys", async ({ params, body }) => {
+    const payload = body as Record<string, unknown>;
     const input: CreateProviderKeyInput = {
       appId: params.appId,
-      provider: body.provider as CreateProviderKeyInput["provider"],
-      label: body.label,
-      apiKey: body.apiKey,
-      vowelPrimeEnvironment: body.vowelPrimeEnvironment,
-      vowelPrimeWorkerUrl: body.vowelPrimeWorkerUrl,
+      provider: payload.provider as CreateProviderKeyInput["provider"],
+      label: typeof payload.label === "string" ? payload.label : undefined,
+      apiKey: typeof payload.apiKey === "string" ? payload.apiKey : "",
+      vowelPrimeEnvironment:
+        typeof payload.vowelPrimeEnvironment === "string"
+          ? payload.vowelPrimeEnvironment
+          : undefined,
+      vowelPrimeWorkerUrl:
+        typeof payload.vowelPrimeWorkerUrl === "string"
+          ? payload.vowelPrimeWorkerUrl
+          : undefined,
     };
     if (!input.apiKey?.trim()) {
       return new Response(
@@ -31,7 +38,7 @@ export const providerKeysRoutes = new Elysia({ prefix: "/api" })
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
-    if (!["vowel-prime", "openai", "grok"].includes(input.provider)) {
+    if (!["engine", "openai", "grok"].includes(input.provider)) {
       return new Response(
         JSON.stringify({ message: "Invalid provider" }),
         { status: 400, headers: { "Content-Type": "application/json" } }

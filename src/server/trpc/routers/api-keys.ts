@@ -15,9 +15,10 @@ import {
   type ApiKeyScope,
   type ApiKeyProvider,
 } from "../../../db/api-keys";
+import { normalizeCoreProvider, type CoreProviderInput } from "../../../lib/provider-identity";
 
 const scopeSchema = z.enum(["mint_ephemeral", "direct_ws"]);
-const providerSchema = z.enum(["vowel-core", "vowel-prime", "openai", "grok"]);
+const providerSchema = z.enum(["engine", "openai", "grok", "vowel-core", "vowel-prime"]);
 
 export const apiKeysRouter = router({
   list: publicProcedure
@@ -40,7 +41,9 @@ export const apiKeysRouter = router({
         appId: input.appId,
         scopes: input.scopes as ApiKeyScope[],
         label: input.label,
-        allowedProviders: input.allowedProviders as ApiKeyProvider[] | undefined,
+        allowedProviders: input.allowedProviders
+          ?.map((provider) => normalizeCoreProvider(provider as CoreProviderInput))
+          .filter((provider): provider is ApiKeyProvider => Boolean(provider)),
       });
     }),
 
@@ -68,7 +71,9 @@ export const apiKeysRouter = router({
       const updated = updateApiKey(input.id, input.appId, {
         scopes: input.scopes as ApiKeyScope[] | undefined,
         label: input.label,
-        allowedProviders: input.allowedProviders as ApiKeyProvider[] | undefined,
+        allowedProviders: input.allowedProviders
+          ?.map((provider) => normalizeCoreProvider(provider as CoreProviderInput))
+          .filter((provider): provider is ApiKeyProvider => Boolean(provider)),
       });
       if (!updated) {
         throw new Error("API key not found");

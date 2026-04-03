@@ -16,7 +16,7 @@ async function main() {
     const app = createApp({ name: "WS Test" });
     await createProviderKey({
       appId: app.id,
-      provider: "vowel-prime",
+      provider: "engine",
       apiKey: process.env.VOWEL_ENGINE_API_KEY || "",
       vowelPrimeEnvironment: "staging",
     });
@@ -28,11 +28,10 @@ async function main() {
       appId: app.id,
       origin: "http://localhost",
       config: {
-        provider: "vowel-prime",
+        provider: "engine",
         voiceConfig: {
           model: DEFAULT_TEST_MODEL,
           voice: "Ashley",
-          vowelPrimeConfig: { environment: "staging" },
         },
       },
     }, apiKey.plaintext);

@@ -62,11 +62,11 @@ describe("Database schema", () => {
     const now = Date.now();
     db.run(
       "INSERT INTO apps (id, name, description, default_provider, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-      ["app-1", "Test App", "A test", "vowel-prime", now, now]
+      ["app-1", "Test App", "A test", "engine", now, now]
     );
     const row = db.query("SELECT * FROM apps WHERE id = ?").get("app-1") as Record<string, unknown>;
     expect(row).toBeDefined();
     expect(row.name).toBe("Test App");
-    expect(row.default_provider).toBe("vowel-prime");
+    expect(row.default_provider).toBe("engine");
   });
 });

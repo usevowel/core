@@ -7,8 +7,9 @@ import {
   ensureApiKeyFromPlaintext,
   type ApiKeyScope,
 } from "./api-keys";
+import { normalizeCoreProvider, type CoreBackendProvider, type CoreProviderInput } from "../lib/provider-identity";
 
-type EndpointProvider = "vowel-core" | "vowel-prime" | "openai" | "grok";
+type EndpointProvider = CoreBackendProvider;
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -29,11 +30,10 @@ function parseScopes(value: string | undefined): ApiKeyScope[] {
 
 function parseProviders(value: string | undefined): EndpointProvider[] {
   const values = parseList(value);
-  const providers = values.filter(
-    (provider): provider is EndpointProvider =>
-      provider === "vowel-core" || provider === "vowel-prime" || provider === "openai" || provider === "grok"
-  );
-  return providers.length > 0 ? providers : ["vowel-prime"];
+  const providers = values
+    .map((provider) => normalizeCoreProvider(provider as CoreProviderInput))
+    .filter((provider): provider is EndpointProvider => Boolean(provider));
+  return providers.length > 0 ? providers : ["engine"];
 }
 
 export async function bootstrapCoreDataFromEnv(): Promise<void> {
@@ -56,7 +56,7 @@ export async function bootstrapCoreDataFromEnv(): Promise<void> {
     id: appId,
     name: appName,
     description: appDescription,
-    defaultProvider: "vowel-prime",
+    defaultProvider: "engine",
   });
 
   const result = await ensureApiKeyFromPlaintext({

@@ -18,6 +18,14 @@ import {
 } from "./token";
 import { initDb } from "../db/init";
 import { bootstrapCoreDataFromEnv } from "../db/bootstrap";
+
+function normalizeTokenIdentifier(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function looksLikeVowelApiKey(value: unknown): value is string {
+  return typeof value === "string" && value.trim().startsWith("vkey_");
+}
 import { statusRoutes } from "./routes/status";
 import { appsRoutes } from "./routes/apps";
 import { apiKeysRoutes } from "./routes/api-keys";
@@ -149,18 +157,33 @@ const trpcHandler = async (request: Request): Promise<Response> => {
 // Token endpoint handler with Bearer auth
 const tokenHandler = async (request: Request): Promise<Response> => {
   try {
+    const body = (await request.json()) as TokenRequestBody;
     const authHeader = request.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const bearerApiKey = authHeader?.startsWith("Bearer ")
+      ? normalizeTokenIdentifier(authHeader.slice(7))
+      : undefined;
+    const bodyApiKey = looksLikeVowelApiKey(body.apiKey)
+      ? normalizeTokenIdentifier(body.apiKey)
+      : looksLikeVowelApiKey(body.appId)
+        ? normalizeTokenIdentifier(body.appId)
+        : undefined;
+    const apiKey = bearerApiKey ?? bodyApiKey;
+
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ message: "Unauthorized: Bearer token required" }),
+        JSON.stringify({ message: "Unauthorized: Bearer token or apiKey/appId publishable key required" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const apiKey = authHeader.slice(7).trim();
-    const body = (await request.json()) as TokenRequestBody;
-    
-    const result = await handleGenerateToken(body, apiKey);
+    const requestedAppId = bodyApiKey
+      ? undefined
+      : normalizeTokenIdentifier(body.appId) ?? normalizeTokenIdentifier(body.apiKey);
+    const result = await handleGenerateToken({
+      ...body,
+      appId: requestedAppId,
+      apiKey: undefined,
+    }, apiKey);
     
     return new Response(JSON.stringify(result), {
       status: 200,

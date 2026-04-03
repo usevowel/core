@@ -35,11 +35,11 @@ describe("Vowel Core Full Flow E2E", () => {
     });
     console.log(`✅ App created: ${app.id}`);
 
-    // Step 2: Add provider key for vowel-prime
+    // Step 2: Add provider key for engine
     console.log("\nStep 2: Adding Vowel Prime provider key...");
     await createProviderKey({
       appId: app.id,
-      provider: "vowel-prime",
+      provider: "engine",
       apiKey: process.env.VOWEL_ENGINE_API_KEY,
       label: "Staging Environment",
       vowelPrimeEnvironment: "staging",
@@ -60,14 +60,11 @@ describe("Vowel Core Full Flow E2E", () => {
     const tokenData = await handleGenerateToken({
       appId: app.id,
       origin: "http://localhost:5173",
-        config: {
-          provider: "vowel-prime",
-          voiceConfig: {
-            model: DEFAULT_TEST_MODEL,
-            voice: "Ashley",
-            vowelPrimeConfig: {
-              environment: "staging",
-          },
+      config: {
+        provider: "engine",
+        voiceConfig: {
+          model: DEFAULT_TEST_MODEL,
+          voice: "Ashley",
         },
       },
     }, apiKeyResult.plaintext);

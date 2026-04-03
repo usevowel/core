@@ -43,7 +43,7 @@ bun test --coverage
 
 ✅ **REST Token Endpoint:**
 - Bearer auth validation
-- Token generation with vowel-prime provider
+- Token generation with the self-hosted engine backend
 - Scope enforcement
 
 ✅ **Full Integration:**

@@ -12,7 +12,7 @@ import {
   type ProviderType,
 } from "../../../db/provider-keys";
 
-const providerSchema = z.enum(["vowel-prime", "openai", "grok"]);
+const providerSchema = z.enum(["engine", "openai", "grok"]);
 
 export const providerKeysRouter = router({
   list: publicProcedure

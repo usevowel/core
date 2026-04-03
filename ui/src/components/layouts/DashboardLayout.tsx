@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Layers, Key, Settings } from "lucide-react";
+import { LayoutDashboard, Layers, FlaskConical, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,7 +12,7 @@ export function DashboardLayout() {
   const navItems = [
     { href: "/", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/apps", icon: Layers, label: "Apps" },
-    { href: "/token", icon: Key, label: "Token" },
+    { href: "/token", icon: FlaskConical, label: "Test Lab" },
     { href: "/providers", icon: Settings, label: "API Providers" },
   ];
 
@@ -27,10 +27,7 @@ export function DashboardLayout() {
         {/* Logo - V */}
         <div className="flex h-16 items-center justify-center border-b border-border px-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <span
-              className="text-lg font-normal leading-none text-primary tracking-tight"
-              style={{ fontFamily: "OCR-A, monospace" }}
-            >
+            <span className="text-lg font-semibold leading-none text-primary tracking-tight font-mono">
               V
             </span>
           </div>

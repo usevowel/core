@@ -4,6 +4,8 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
 import "./index.css";
 
+document.documentElement.classList.add("dark");
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");
 
