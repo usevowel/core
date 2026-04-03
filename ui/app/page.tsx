@@ -23,7 +23,7 @@ export default async function HomePage() {
           <div className="nav-brand">Vowel Core</div>
           <div className="nav-links">
             <Link href="/apps">Apps</Link>
-            <Link href="/token">Token</Link>
+            <Link href="/test">Test Lab</Link>
           </div>
         </div>
       </nav>
@@ -114,7 +114,7 @@ export default async function HomePage() {
               </div>
             </Link>
             <Link
-              href="/token"
+              href="/test"
               style={{
                 display: "block",
                 background: "var(--surface)",
@@ -125,9 +125,9 @@ export default async function HomePage() {
                 textDecoration: "none",
               }}
             >
-              <div className="stat-label">Token</div>
+              <div className="stat-label">Test Lab</div>
               <div className="stat-value" style={{ fontSize: "1.2rem" }}>
-                Generate token →
+                Mint tokens & test →
               </div>
             </Link>
           </div>

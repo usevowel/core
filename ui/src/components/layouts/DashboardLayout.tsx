@@ -12,7 +12,7 @@ export function DashboardLayout() {
   const navItems = [
     { href: "/", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/apps", icon: Layers, label: "Apps" },
-    { href: "/token", icon: FlaskConical, label: "Test Lab" },
+    { href: "/test", icon: FlaskConical, label: "Test Lab" },
     { href: "/providers", icon: Settings, label: "API Providers" },
   ];
 

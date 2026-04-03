@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Zap,
   Layers,
-  Key,
+  FlaskConical,
   Settings,
   ArrowRight,
   CheckCircle,
@@ -147,16 +147,16 @@ function DashboardPage() {
             <Card className="transition-colors hover:border-primary/50 hover:bg-accent/5">
               <CardHeader>
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Key className="h-6 w-6 text-primary" />
+                  <FlaskConical className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="mt-4">Token</CardTitle>
+                <CardTitle className="mt-4">Test Lab</CardTitle>
                 <CardDescription>
-                  Generate ephemeral tokens for testing your integration.
+                  Mint tokens, inspect payloads, and run live validation tests.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="ghost" className="w-full justify-between">
-                  Generate token
+                  Open test lab
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>

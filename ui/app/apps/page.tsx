@@ -12,7 +12,7 @@ export default function AppsPage() {
           <div className="nav-links">
             <Link href="/">Dashboard</Link>
             <Link href="/apps">Apps</Link>
-            <Link href="/token">Token</Link>
+            <Link href="/test">Test Lab</Link>
           </div>
         </div>
       </nav>
