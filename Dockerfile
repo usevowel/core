@@ -1,16 +1,34 @@
 # =============================================================================
-# Stage 1: Build UI
+# Stage 1: Build Client Library
+# =============================================================================
+FROM oven/bun:1.2-alpine AS client-builder
+
+WORKDIR /app/client
+
+# Copy client dependencies
+COPY client/package.json ./
+RUN bun install --no-cache
+
+# Copy client source and build
+COPY client/ ./
+RUN bun run build
+
+# =============================================================================
+# Stage 2: Build UI
 # =============================================================================
 FROM oven/bun:1.2-alpine AS ui-builder
 
-WORKDIR /app/ui
+WORKDIR /app/core/ui
+
+# Copy built client from stage 1
+COPY --from=client-builder /app/client /app/client
 
 # Copy UI dependencies
-COPY ui/package.json ui/bun.lock ./
+COPY core/ui/package.json core/ui/bun.lock ./
 RUN bun install --frozen-lockfile --no-cache
 
 # Copy UI source and build
-COPY ui/ ./
+COPY core/ui/ ./
 RUN bun run build
 
 # =============================================================================
@@ -18,14 +36,14 @@ RUN bun run build
 # =============================================================================
 FROM oven/bun:1.2-alpine AS server-builder
 
-WORKDIR /app
+WORKDIR /app/core
 
 # Copy server dependencies
-COPY package.json bun.lock ./
+COPY core/package.json core/bun.lock ./
 RUN bun install --frozen-lockfile --no-cache
 
 # Copy server source
-COPY src/ ./src/
+COPY core/src/ ./src/
 
 # Build server (optional, for type checking)
 # RUN bun run build:server
@@ -41,16 +59,16 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lock ./
+COPY core/package.json core/bun.lock ./
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production --no-cache
 
 # Copy server source
-COPY src/ ./src/
+COPY core/src/ ./src/
 
 # Copy built UI from stage 1
-COPY --from=ui-builder /app/ui/dist ./ui/dist
+COPY --from=ui-builder /app/core/ui/dist ./ui/dist
 
 # Create data directory
 RUN mkdir -p /app/data
