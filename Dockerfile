@@ -7,7 +7,7 @@ WORKDIR /app/ui
 
 # Copy UI dependencies
 COPY ui/package.json ui/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --no-cache
 
 # Copy UI source and build
 COPY ui/ ./
@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Copy server dependencies
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --no-cache
 
 # Copy server source
 COPY src/ ./src/
@@ -44,7 +44,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 
 # Install production dependencies only
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --no-cache
 
 # Copy server source
 COPY src/ ./src/
