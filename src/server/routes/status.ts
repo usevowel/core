@@ -2,8 +2,9 @@
  * Status and configuration summary routes.
  */
 
-import { Elysia } from "elysia";
-import { getEngineHealth } from "../engine-config";
+import { Elysia } from \"elysia\";
+import { getEngineHealth } from \"../engine-config\";
+import { getSpeechProviderRegistry } from \"../speech-providers\";
 
 export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async () => {
   const providers = {
@@ -48,8 +49,11 @@ export const statusRoutes = new Elysia({ prefix: "/api" }).get("/status", async 
     };
   }
 
+  const speechProviders = getSpeechProviderRegistry();
+
   return {
     providers,
     engine,
+    speechProviders,
   };
 });

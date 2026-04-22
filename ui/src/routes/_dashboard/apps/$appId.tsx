@@ -79,6 +79,12 @@ interface RuntimeConfigDraft {
   serverVADThreshold: string;
   serverVADPrefixPaddingMs: string;
   serverVADSilenceDurationMs: string;
+  sttProvider: string;
+  sttModel: string;
+  sttLanguage: string;
+  ttsProvider: string;
+  ttsModel: string;
+  ttsVoice: string;
 }
 
 const DEFAULT_RUNTIME_DRAFT: RuntimeConfigDraft = {
@@ -98,21 +104,29 @@ const DEFAULT_RUNTIME_DRAFT: RuntimeConfigDraft = {
   clientVADAdapter: "silero-vad",
   clientVADAutoCommit: true,
   serverVADThreshold: "",
-  serverVADPrefixPaddingMs: "",
-  serverVADSilenceDurationMs: "",
+  serverVADPrefixPaddingMs: '',
+  serverVADSilenceDurationMs: '',
+  sttProvider: '',
+  sttModel: '',
+  sttLanguage: '',
+  ttsProvider: '',
+  ttsModel: '',
+  ttsVoice: '',
 };
 
 const MANAGED_RUNTIME_KEYS = new Set(["provider", "systemInstructionOverride", "voiceConfig"]);
 const MANAGED_VOICE_KEYS = new Set([
-  "model",
-  "voice",
-  "language",
-  "speakingRate",
-  "llmProvider",
-  "openrouterOptions",
-  "initialGreetingPrompt",
-  "turnDetectionPreset",
-  "turnDetection",
+  'model',
+  'voice',
+  'language',
+  'speakingRate',
+  'llmProvider',
+  'openrouterOptions',
+  'initialGreetingPrompt',
+  'turnDetectionPreset',
+  'turnDetection',
+  'stt',
+  'tts',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -252,6 +266,12 @@ function runtimeConfigToDraft(runtimeConfig: Record<string, unknown> | null | un
     serverVADThreshold: readNumberString(serverVAD?.threshold),
     serverVADPrefixPaddingMs: readNumberString(serverVAD?.prefixPaddingMs),
     serverVADSilenceDurationMs: readNumberString(serverVAD?.silenceDurationMs),
+    sttProvider: readString((voiceConfig as { stt?: Record<string, unknown> } | null)?.stt?.provider),
+    sttModel: readString((voiceConfig as { stt?: Record<string, unknown> } | null)?.stt?.model),
+    sttLanguage: readString((voiceConfig as { stt?: Record<string, unknown> } | null)?.stt?.language),
+    ttsProvider: readString((voiceConfig as { tts?: Record<string, unknown> } | null)?.tts?.provider),
+    ttsModel: readString((voiceConfig as { tts?: Record<string, unknown> } | null)?.tts?.model),
+    ttsVoice: readString((voiceConfig as { tts?: Record<string, unknown> } | null)?.tts?.voice),
   };
 }
 
@@ -305,6 +325,20 @@ function buildRuntimeConfigPreview(
       initialGreetingPrompt: draft.initialGreetingPrompt,
       turnDetectionPreset: draft.turnDetectionPreset || undefined,
       turnDetection,
+      stt: draft.sttProvider
+        ? {
+            provider: draft.sttProvider,
+            model: draft.sttModel || undefined,
+            language: draft.sttLanguage || undefined,
+          }
+        : undefined,
+      tts: draft.ttsProvider
+        ? {
+            provider: draft.ttsProvider,
+            model: draft.ttsModel || undefined,
+            voice: draft.ttsVoice || undefined,
+          }
+        : undefined,
     },
   });
 
@@ -334,6 +368,13 @@ function AppDetailPage() {
   const [visibleKeyIds, setVisibleKeyIds] = useState<Record<string, boolean>>({});
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
+  type SpeechProviderEntry = {
+    configured: boolean;
+    label: string;
+    supports: string[];
+  };
+  const [speechProviders, setSpeechProviders] = useState<Record<string, SpeechProviderEntry>>({});
+
   const loadApp = async () => {
     const res = await fetch(`/api/apps/${appId}`);
     if (!res.ok) {
@@ -356,14 +397,20 @@ function AppDetailPage() {
     return data;
   };
 
-  const refresh = async () => {
+const refresh = async () => {
     setLoading(true);
     setError(null);
     try {
       await loadApp();
       await loadKeys();
+
+      const speechRes = await fetch('/api/status');
+      if (speechRes.ok) {
+        const status = await speechRes.json();
+        setSpeechProviders(status.speechProviders ?? {});
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load app");
+      setError(err instanceof Error ? err.message : 'Failed to load app');
     } finally {
       setLoading(false);
     }
@@ -651,12 +698,13 @@ function AppDetailPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <Tabs defaultValue="connection" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-flex">
-                <TabsTrigger value="connection">Connection</TabsTrigger>
-                <TabsTrigger value="behavior">Behavior</TabsTrigger>
-                <TabsTrigger value="detection">Turn detection</TabsTrigger>
-                <TabsTrigger value="preview">Review</TabsTrigger>
-                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+              <TabsList className='grid w-full grid-cols-6 sm:w-auto sm:inline-flex'>
+                <TabsTrigger value='connection'>Connection</TabsTrigger>
+                <TabsTrigger value='behavior'>Behavior</TabsTrigger>
+                <TabsTrigger value='detection'>Turn detection</TabsTrigger>
+                <TabsTrigger value='speech'>Speech providers</TabsTrigger>
+                <TabsTrigger value='preview'>Review</TabsTrigger>
+                <TabsTrigger value='advanced'>Advanced</TabsTrigger>
               </TabsList>
 
               <TabsContent value="connection" className="space-y-4">
@@ -878,7 +926,132 @@ function AppDetailPage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="detection" className="space-y-4">
+              <TabsContent value='speech' className='space-y-4'>
+                <div className='grid gap-4 lg:grid-cols-2'>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-lg'>Speech-to-Text (STT)</CardTitle>
+                      <CardDescription>
+                        Choose the provider for transcription. Only configured providers are shown.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className='space-y-4'>
+                      <div className='space-y-2'>
+                        <Label>STT Provider</Label>
+                        <Select
+                          value={runtimeDraft.sttProvider || '__default__'}
+                          onValueChange={(value) =>
+                            setRuntimeDraft((prev) => ({
+                              ...prev,
+                              sttProvider: value === '__default__' ? '' : value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder='Use stack default' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='__default__'>Use stack default</SelectItem>
+                            {Object.entries(speechProviders)
+                              .filter(([_, p]) => p.supports.includes('stt') && p.configured)
+                              .map(([id, p]) => (
+                                <SelectItem key={id} value={id}>{p.label}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <Label>Model</Label>
+                          <Input
+                            value={runtimeDraft.sttModel}
+                            onChange={(event) =>
+                              setRuntimeDraft((prev) => ({ ...prev, sttModel: event.target.value }))
+                            }
+                            placeholder='nova-3'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <Label>Language</Label>
+                          <Input
+                            value={runtimeDraft.sttLanguage}
+                            onChange={(event) =>
+                              setRuntimeDraft((prev) => ({ ...prev, sttLanguage: event.target.value }))
+                            }
+                            placeholder='en-US'
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className='text-lg'>Text-to-Speech (TTS)</CardTitle>
+                      <CardDescription>
+                        Choose the provider for speech synthesis.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className='space-y-4'>
+                      <div className='space-y-2'>
+                        <Label>TTS Provider</Label>
+                        <Select
+                          value={runtimeDraft.ttsProvider || '__default__'}
+                          onValueChange={(value) =>
+                            setRuntimeDraft((prev) => ({
+                              ...prev,
+                              ttsProvider: value === '__default__' ? '' : value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder='Use stack default' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='__default__'>Use stack default</SelectItem>
+                            {Object.entries(speechProviders)
+                              .filter(([_, p]) => p.supports.includes('tts') && p.configured)
+                              .map(([id, p]) => (
+                                <SelectItem key={id} value={id}>{p.label}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className='grid gap-4 sm:grid-cols-2'>
+                        <div className='space-y-2'>
+                          <Label>Model</Label>
+                          <Input
+                            value={runtimeDraft.ttsModel}
+                            onChange={(event) =>
+                              setRuntimeDraft((prev) => ({ ...prev, ttsModel: event.target.value }))
+                            }
+                            placeholder='Kokoro-82M-v1.0-ONNX'
+                          />
+                        </div>
+                        <div className='space-y-2'>
+                          <Label>Voice</Label>
+                          <Input
+                            value={runtimeDraft.ttsVoice}
+                            onChange={(event) =>
+                              setRuntimeDraft((prev) => ({ ...prev, ttsVoice: event.target.value }))
+                            }
+                            placeholder='af_heart'
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className='rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground'>
+                  Speech provider credentials are configured in your stack environment variables, not in app settings.
+                  App settings only control which configured provider to use per app.
+                </div>
+              </TabsContent>
+
+              <TabsContent value='detection' className='space-y-4'>
                 <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                   <Card>
                     <CardHeader>

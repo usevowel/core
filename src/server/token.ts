@@ -12,6 +12,7 @@ import {
   type CoreBackendProvider,
   type CoreProviderInput,
 } from "../lib/provider-identity";
+import { buildSpeechProviderConfig, type SpeechProviderSelection } from "./speech-providers";
 
 export interface TokenRequestBody {
   apiKey?: string;
@@ -73,6 +74,8 @@ export interface TokenRequestBody {
           silenceDurationMs?: number;
         };
       };
+      stt?: SpeechProviderSelection;
+      tts?: SpeechProviderSelection;
     };
   };
 }
@@ -278,6 +281,14 @@ export async function handleGenerateToken(
         requestBody.openrouterAppName = openrouterOptions.appName;
       }
     }
+
+    // Build STT/TTS provider configs from voiceConfig
+    const { stt, tts } = (otherVoiceConfig as Record<string, unknown>) ?? {};
+    const sttConfig = (stt || tts) ? buildSpeechProviderConfig('stt', stt as Parameters<typeof buildSpeechProviderConfig>[1]) : undefined;
+    const ttsConfig = (stt || tts) ? buildSpeechProviderConfig('tts', tts as Parameters<typeof buildSpeechProviderConfig>[1]) : undefined;
+
+    if (sttConfig) requestBody.stt = sttConfig;
+    if (ttsConfig) requestBody.tts = ttsConfig;
 
     const res = await fetch(endpoint, {
       method: "POST",
